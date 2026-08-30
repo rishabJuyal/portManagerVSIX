@@ -1175,7 +1175,16 @@ class DevControlCenterApp {
   }
 }
 
-// Initialize when DOM is ready
-window.addEventListener('DOMContentLoaded', () => {
-  new DevControlCenterApp();
-});
+function startApp(): void {
+  try {
+    new DevControlCenterApp();
+  } catch (err) {
+    console.error('Failed to initialize DevControlCenterApp:', err);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  startApp();
+}

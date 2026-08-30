@@ -25,13 +25,7 @@ export function getWebviewContent(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'none';
-    style-src ${webview.cspSource} 'unsafe-inline';
-    font-src ${webview.cspSource};
-    script-src 'nonce-${nonce}';
-    img-src ${webview.cspSource} https: data:;
-  ">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource} data:; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} https: data:;">
   <title>Dev Control Center</title>
   <link rel="stylesheet" href="${codiconCssUri}" />
   <link rel="stylesheet" href="${xtermCssUri}" />
