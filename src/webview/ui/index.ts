@@ -878,6 +878,7 @@ class DevControlCenterApp {
   }
 
   private inspectProcess(port: number, pid: number, name: string): void {
+    this.closeDropdown();
     this.inspectingPort = port;
     this.inspectingProcess = { pid, name, port };
     this.activeModal = 'processDetails';
@@ -886,6 +887,7 @@ class DevControlCenterApp {
   }
 
   private confirmKillProcess(pid: number, port: number, processName: string): void {
+    this.closeDropdown();
     if (this.settings.confirmBeforeKill) {
       this.pendingKillTarget = { pid, port, processName };
       this.activeModal = 'killConfirm';
@@ -1233,12 +1235,14 @@ class DevControlCenterApp {
   }
 
   private openSaveCommandModal(commandId?: string): void {
+    this.closeDropdown();
     this.editingCommandId = commandId || null;
     this.activeModal = 'saveCommand';
     this.renderModal();
   }
 
   private openSettingsModal(): void {
+    this.closeDropdown();
     this.activeModal = 'settings';
     this.renderModal();
   }
