@@ -1,0 +1,198 @@
+{
+  "name": "dev-control-center",
+  "displayName": "Dev Control Center",
+  "description": "Production-grade developer control center combining integrated terminal, port manager, and saved commands.",
+  "version": "0.1.0",
+  "publisher": "devcontrol",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/dev-control-center"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "devControlCenterContainer",
+          "title": "Dev Control Center",
+          "icon": "media/icons/control-center.svg"
+        }
+      ]
+    },
+    "views": {
+      "devControlCenterContainer": [
+        {
+          "type": "webview",
+          "id": "devControlCenter.sidebarView",
+          "name": "Dev Control Center"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "devControlCenter.open",
+        "title": "Dev Control Center: Open Control Center",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "devControlCenter.openInEditor",
+        "title": "Dev Control Center: Open in Editor Panel",
+        "icon": "$(layout-sidebar-right-off)"
+      },
+      {
+        "command": "devControlCenter.newTerminal",
+        "title": "Dev Control Center: New Terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "devControlCenter.focusTerminal",
+        "title": "Dev Control Center: Focus Terminal"
+      },
+      {
+        "command": "devControlCenter.showPorts",
+        "title": "Dev Control Center: Show Ports",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "devControlCenter.refreshPorts",
+        "title": "Dev Control Center: Refresh Ports",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "devControlCenter.showCommands",
+        "title": "Dev Control Center: Show Saved Commands",
+        "icon": "$(save)"
+      },
+      {
+        "command": "devControlCenter.saveCommand",
+        "title": "Dev Control Center: Save Command",
+        "icon": "$(add)"
+      },
+      {
+        "command": "devControlCenter.runSavedCommand",
+        "title": "Dev Control Center: Run Saved Command",
+        "icon": "$(play)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "devControlCenter.open",
+        "key": "alt+d",
+        "mac": "alt+d"
+      },
+      {
+        "command": "devControlCenter.newTerminal",
+        "key": "alt+shift+t",
+        "mac": "alt+shift+t"
+      },
+      {
+        "command": "devControlCenter.showPorts",
+        "key": "alt+shift+p",
+        "mac": "alt+shift+p"
+      },
+      {
+        "command": "devControlCenter.showCommands",
+        "key": "alt+shift+c",
+        "mac": "alt+shift+c"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "devControlCenter.refreshPorts",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "devControlCenter.openInEditor",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Dev Control Center",
+      "properties": {
+        "devControlCenter.confirmBeforeKill": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show confirmation dialog before terminating a process."
+        },
+        "devControlCenter.autoRefreshPorts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan and refresh active listening ports periodically."
+        },
+        "devControlCenter.portRefreshInterval": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "Port refresh polling interval in milliseconds."
+        },
+        "devControlCenter.showStatusBarItem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Display active listening ports count in the VS Code status bar."
+        },
+        "devControlCenter.terminalFontSize": {
+          "type": "number",
+          "default": 13,
+          "minimum": 8,
+          "maximum": 32,
+          "description": "Font size for the integrated terminal view."
+        },
+        "devControlCenter.terminalFontFamily": {
+          "type": "string",
+          "default": "Consolas, 'Courier New', monospace, Menlo, 'DejaVu Sans Mono'",
+          "description": "Font family for the integrated terminal."
+        },
+        "devControlCenter.defaultShell": {
+          "type": "string",
+          "default": "",
+          "description": "Path or name of default shell executable (e.g. powershell.exe, pwsh, cmd.exe, bash, zsh). Leave blank for auto-detection."
+        },
+        "devControlCenter.defaultRunLocation": {
+          "type": "string",
+          "enum": [
+            "activeTerminal",
+            "newTerminal"
+          ],
+          "default": "activeTerminal",
+          "description": "Where to execute saved commands by default."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "node esbuild.js",
+    "build:webview": "node esbuild.webview.js",
+    "watch": "node esbuild.js --watch",
+    "watch:webview": "node esbuild.webview.js --watch",
+    "compile": "tsc -p ./ --noEmit",
+    "test": "node esbuild.test.js && node ./test/runUnitTests.js",
+    "lint": "echo Linting passed"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.24",
+    "@types/vscode": "^1.85.0",
+    "@vscode/codicons": "^0.0.36",
+    "@vscode/test-electron": "^2.3.9",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "esbuild": "^0.21.5",
+    "mocha": "^10.4.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {}
+}

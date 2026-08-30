@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build and Compilation outputs
+dist/
+dist-test/
+out/
+*.tsbuildinfo
+
+# VSIX extension packages
+*.vsix
+*.tgz
+
+# Test artifacts and VS Code test instances
+.vscode-test/
+coverage/
+.nyc_output/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment and Local Configs
+.env
+.env.local
+.env.*.local
+
+# Operating System files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE directories
+.idea/
+*.swp
+*.swo
+*~

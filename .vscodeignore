@@ -1,0 +1,11 @@
+.vscode/**
+.vscode-test/**
+src/**
+test/**
+dist-test/**
+esbuild.js
+esbuild.webview.js
+esbuild.test.js
+tsconfig.json
+**/*.map
+node_modules/**
