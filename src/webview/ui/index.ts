@@ -33,6 +33,7 @@ interface TerminalInstance {
 
 class DevControlCenterApp {
   private activeTab: 'terminal' | 'ports' | 'commands' | 'settings' = 'terminal';
+  private activeDropdown: 'ports' | 'commands' | null = null;
   private sessions: TerminalSessionInfo[] = [];
   private activeSessionId: string | null = null;
   private ports: PortInfo[] = [];
@@ -131,27 +132,57 @@ class DevControlCenterApp {
 
   private setupGlobalShortcuts(): void {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
-      // Ctrl+K or Cmd+K to focus search in active view
+      // Ctrl+K or Cmd+K to focus search in active dropdown or open ports
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        if (this.activeTab === 'ports') {
+        if (this.activeDropdown === 'ports') {
           const input = document.getElementById('port-search-input') as HTMLInputElement;
           input?.focus();
-        } else if (this.activeTab === 'commands') {
+        } else if (this.activeDropdown === 'commands') {
           const input = document.getElementById('command-search-input') as HTMLInputElement;
           input?.focus();
+        } else {
+          this.openDropdown('ports');
         }
       }
 
-      // Escape closes open modals
-      if (e.key === 'Escape' && this.activeModal) {
-        this.closeModal();
+      // Escape closes open modals or open dropdowns
+      if (e.key === 'Escape') {
+        if (this.activeModal) {
+          this.closeModal();
+        } else if (this.activeDropdown) {
+          this.closeDropdown();
+        }
       }
     });
 
     window.addEventListener('resize', () => {
       this.fitActiveTerminal();
     });
+
+    // Close dropdown when clicking / tapping outside
+    window.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (!this.activeDropdown) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const dropdownEl = document.getElementById(`dropdown-${this.activeDropdown}`);
+      if (dropdownEl && dropdownEl.contains(target)) {
+        return;
+      }
+
+      const triggerBtn = document.getElementById(`btn-header-${this.activeDropdown}`);
+      if (triggerBtn && triggerBtn.contains(target)) {
+        return;
+      }
+
+      const modalBackdrop = document.getElementById('modal-backdrop');
+      if (modalBackdrop && modalBackdrop.style.display !== 'none' && modalBackdrop.contains(target)) {
+        return;
+      }
+
+      this.closeDropdown();
+    }, true);
   }
 
   private handleStateInit(payload: InitialStatePayload): void {
@@ -164,7 +195,9 @@ class DevControlCenterApp {
     this.currentWorkspace = payload.currentWorkspace;
 
     this.renderAll();
-    this.switchTab(payload.activeTab || 'terminal');
+    if (payload.activeTab && payload.activeTab !== 'terminal') {
+      this.switchTab(payload.activeTab);
+    }
   }
 
   private handleSessionsUpdate(sessions: TerminalSessionInfo[], activeId: string | null): void {
@@ -224,18 +257,24 @@ class DevControlCenterApp {
 
     app.innerHTML = `
       <nav class="nav-bar">
-        <div class="nav-tabs" id="nav-tabs-container">
-          <button class="nav-tab active" data-tab="terminal">
-            <i class="codicon codicon-terminal"></i> Terminal
-          </button>
-          <button class="nav-tab" data-tab="ports">
-            <i class="codicon codicon-plug"></i> Ports <span class="badge" id="ports-count-badge">0</span>
-          </button>
-          <button class="nav-tab" data-tab="commands">
-            <i class="codicon codicon-save"></i> Commands <span class="badge" id="commands-count-badge">0</span>
-          </button>
+        <div class="nav-left">
+          <span class="nav-brand-title">
+            <i class="codicon codicon-terminal"></i>
+            <span>Terminal</span>
+          </span>
         </div>
         <div class="nav-actions">
+          <button class="header-icon-btn" id="btn-header-ports" title="Active Ports (Click to toggle dropdown)">
+            <i class="codicon codicon-plug"></i>
+            <span class="btn-label">Ports</span>
+            <span class="badge" id="ports-count-badge">0</span>
+          </button>
+          <button class="header-icon-btn" id="btn-header-commands" title="Saved Commands (Click to toggle dropdown)">
+            <i class="codicon codicon-save"></i>
+            <span class="btn-label">Saved</span>
+            <span class="badge" id="commands-count-badge">0</span>
+          </button>
+          <div class="nav-separator"></div>
           <button class="icon-btn" id="btn-global-refresh" title="Refresh Ports (Ctrl+R)">
             <i class="codicon codicon-refresh"></i>
           </button>
@@ -245,6 +284,69 @@ class DevControlCenterApp {
         </div>
       </nav>
 
+      <!-- Ports Dropdown Overlay -->
+      <div id="dropdown-ports" class="header-dropdown" style="display: none;">
+        <div class="dropdown-header">
+          <div class="dropdown-title">
+            <i class="codicon codicon-plug"></i>
+            <span>Active Ports</span>
+            <span class="badge" id="dropdown-ports-count">0</span>
+          </div>
+          <div class="dropdown-header-actions">
+            <button class="icon-btn" id="btn-dropdown-ports-close" title="Close dropdown">
+              <i class="codicon codicon-close"></i>
+            </button>
+          </div>
+        </div>
+        <div class="dropdown-toolbar">
+          <div class="search-input-wrapper">
+            <i class="codicon codicon-search"></i>
+            <input type="text" id="port-search-input" class="search-input" placeholder="Filter ports or processes... (Ctrl+K)" />
+          </div>
+          <label class="toggle-switch" title="Auto-refresh ports periodically">
+            <input type="checkbox" id="toggle-port-autorefresh" checked />
+            <span class="toggle-slider"></span>
+            <span>Auto</span>
+          </label>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-ports" title="Scan Ports Now">
+            <i class="codicon codicon-refresh"></i> Refresh
+          </button>
+        </div>
+        <div class="dropdown-body ports-list-container" id="ports-list-container"></div>
+      </div>
+
+      <!-- Saved Commands Dropdown Overlay -->
+      <div id="dropdown-commands" class="header-dropdown" style="display: none;">
+        <div class="dropdown-header">
+          <div class="dropdown-title">
+            <i class="codicon codicon-save"></i>
+            <span>Saved Commands</span>
+            <span class="badge" id="dropdown-commands-count">0</span>
+          </div>
+          <div class="dropdown-header-actions">
+            <button class="btn btn-primary btn-sm" id="btn-new-command" title="Save New Command">
+              <i class="codicon codicon-add"></i> Save
+            </button>
+            <button class="icon-btn" id="btn-dropdown-commands-close" title="Close dropdown">
+              <i class="codicon codicon-close"></i>
+            </button>
+          </div>
+        </div>
+        <div class="dropdown-toolbar">
+          <div class="search-input-wrapper">
+            <i class="codicon codicon-search"></i>
+            <input type="text" id="command-search-input" class="search-input" placeholder="Search commands... (Ctrl+K)" />
+          </div>
+          <div class="commands-filter-bar">
+            <button class="filter-btn active" data-scope="all">All</button>
+            <button class="filter-btn" data-scope="workspace">Workspace</button>
+            <button class="filter-btn" data-scope="global">Global</button>
+          </div>
+        </div>
+        <div class="dropdown-body commands-list-container" id="commands-list-container"></div>
+      </div>
+
+      <!-- Terminal View (Primary) -->
       <div id="view-terminal" class="view-container active">
         <div class="terminal-view">
           <div class="terminal-header">
@@ -271,46 +373,6 @@ class DevControlCenterApp {
         </div>
       </div>
 
-      <div id="view-ports" class="view-container">
-        <div class="ports-view">
-          <div class="toolbar">
-            <div class="search-input-wrapper">
-              <i class="codicon codicon-search"></i>
-              <input type="text" id="port-search-input" class="search-input" placeholder="Filter ports or processes... (Ctrl+K)" />
-            </div>
-            <label class="toggle-switch" title="Auto-refresh ports periodically">
-              <input type="checkbox" id="toggle-port-autorefresh" checked />
-              <span class="toggle-slider"></span>
-              <span>Auto</span>
-            </label>
-            <button class="btn btn-secondary" id="btn-refresh-ports" title="Scan Ports Now">
-              <i class="codicon codicon-refresh"></i> Refresh
-            </button>
-          </div>
-          <div class="ports-list-container" id="ports-list-container"></div>
-        </div>
-      </div>
-
-      <div id="view-commands" class="view-container">
-        <div class="commands-view">
-          <div class="toolbar">
-            <div class="search-input-wrapper">
-              <i class="codicon codicon-search"></i>
-              <input type="text" id="command-search-input" class="search-input" placeholder="Search commands... (Ctrl+K)" />
-            </div>
-            <button class="btn btn-primary" id="btn-new-command">
-              <i class="codicon codicon-add"></i> Save Command
-            </button>
-          </div>
-          <div class="commands-filter-bar">
-            <button class="filter-btn active" data-scope="all">All</button>
-            <button class="filter-btn" data-scope="workspace">Workspace</button>
-            <button class="filter-btn" data-scope="global">Global</button>
-          </div>
-          <div class="commands-list-container" id="commands-list-container"></div>
-        </div>
-      </div>
-
       <div id="modal-backdrop" class="process-modal-backdrop" style="display: none;"></div>
       <div id="toast-container" style="position: fixed; bottom: 12px; right: 12px; z-index: 999; display: flex; flex-direction: column; gap: 6px;"></div>
     `;
@@ -319,12 +381,23 @@ class DevControlCenterApp {
   }
 
   private setupEventListeners(): void {
-    // Nav Tabs
-    document.querySelectorAll('.nav-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tab = (btn as HTMLElement).dataset.tab as any;
-        this.switchTab(tab);
-      });
+    // Header Dropdown Toggles
+    document.getElementById('btn-header-ports')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleDropdown('ports');
+    });
+
+    document.getElementById('btn-header-commands')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleDropdown('commands');
+    });
+
+    document.getElementById('btn-dropdown-ports-close')?.addEventListener('click', () => {
+      this.closeDropdown();
+    });
+
+    document.getElementById('btn-dropdown-commands-close')?.addEventListener('click', () => {
+      this.closeDropdown();
     });
 
     // Global action buttons
@@ -405,31 +478,77 @@ class DevControlCenterApp {
     });
   }
 
+  public toggleDropdown(type: 'ports' | 'commands'): void {
+    if (this.activeDropdown === type) {
+      this.closeDropdown();
+    } else {
+      this.openDropdown(type);
+    }
+  }
+
+  public openDropdown(type: 'ports' | 'commands'): void {
+    this.activeDropdown = type;
+
+    const portsDropdown = document.getElementById('dropdown-ports');
+    const commandsDropdown = document.getElementById('dropdown-commands');
+    const portsBtn = document.getElementById('btn-header-ports');
+    const commandsBtn = document.getElementById('btn-header-commands');
+
+    if (portsDropdown) portsDropdown.style.display = type === 'ports' ? 'flex' : 'none';
+    if (commandsDropdown) commandsDropdown.style.display = type === 'commands' ? 'flex' : 'none';
+
+    portsBtn?.classList.toggle('active', type === 'ports');
+    commandsBtn?.classList.toggle('active', type === 'commands');
+
+    if (type === 'ports') {
+      this.renderPorts();
+      this.postToExtension({ type: 'ports:refresh' });
+      setTimeout(() => {
+        const input = document.getElementById('port-search-input') as HTMLInputElement;
+        input?.focus();
+      }, 50);
+    } else if (type === 'commands') {
+      this.renderCommands();
+      setTimeout(() => {
+        const input = document.getElementById('command-search-input') as HTMLInputElement;
+        input?.focus();
+      }, 50);
+    }
+  }
+
+  public closeDropdown(): void {
+    this.activeDropdown = null;
+
+    const portsDropdown = document.getElementById('dropdown-ports');
+    const commandsDropdown = document.getElementById('dropdown-commands');
+    const portsBtn = document.getElementById('btn-header-ports');
+    const commandsBtn = document.getElementById('btn-header-commands');
+
+    if (portsDropdown) portsDropdown.style.display = 'none';
+    if (commandsDropdown) commandsDropdown.style.display = 'none';
+
+    portsBtn?.classList.remove('active');
+    commandsBtn?.classList.remove('active');
+
+    this.fitActiveTerminal();
+  }
+
   public switchTab(tab: 'terminal' | 'ports' | 'commands' | 'settings'): void {
     this.activeTab = tab;
 
-    document.querySelectorAll('.nav-tab').forEach(b => {
-      b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab);
-    });
-
-    document.querySelectorAll('.view-container').forEach(v => {
-      v.classList.remove('active');
-    });
-
-    const activeView = document.getElementById(`view-${tab}`);
-    if (activeView) {
-      activeView.classList.add('active');
+    if (tab === 'ports') {
+      this.openDropdown('ports');
+    } else if (tab === 'commands') {
+      this.openDropdown('commands');
+    } else if (tab === 'settings') {
+      this.closeDropdown();
+      this.openSettingsModal();
+    } else {
+      this.closeDropdown();
+      setTimeout(() => this.fitActiveTerminal(), 50);
     }
 
     this.postToExtension({ type: 'switchTab', tab });
-
-    if (tab === 'terminal') {
-      setTimeout(() => this.fitActiveTerminal(), 50);
-    } else if (tab === 'ports') {
-      this.renderPorts();
-    } else if (tab === 'commands') {
-      this.renderCommands();
-    }
   }
 
   private updateNavBadges(): void {
@@ -437,9 +556,18 @@ class DevControlCenterApp {
     if (portsBadge) {
       portsBadge.textContent = String(this.ports.length);
     }
+    const dropdownPortsCount = document.getElementById('dropdown-ports-count');
+    if (dropdownPortsCount) {
+      dropdownPortsCount.textContent = String(this.ports.length);
+    }
+
     const commandsBadge = document.getElementById('commands-count-badge');
     if (commandsBadge) {
       commandsBadge.textContent = String(this.commands.length);
+    }
+    const dropdownCommandsCount = document.getElementById('dropdown-commands-count');
+    if (dropdownCommandsCount) {
+      dropdownCommandsCount.textContent = String(this.commands.length);
     }
   }
 
@@ -842,10 +970,14 @@ class DevControlCenterApp {
 
       card.querySelector('.btn-run-cmd')?.addEventListener('click', () => {
         this.postToExtension({ type: 'commands:run', id: cmd.id, inNewTerminal: false });
+        this.closeDropdown();
+        this.showToast(`Running "${cmd.name}"...`, 'info');
       });
 
       card.querySelector('.btn-run-new')?.addEventListener('click', () => {
         this.postToExtension({ type: 'commands:run', id: cmd.id, inNewTerminal: true });
+        this.closeDropdown();
+        this.showToast(`Running "${cmd.name}" in new terminal...`, 'info');
       });
 
       card.querySelector('.btn-edit-cmd')?.addEventListener('click', () => {
