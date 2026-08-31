@@ -81,6 +81,41 @@ export function registerCommands(
     })
   );
 
+  // 8. Restart Terminal
+  context.subscriptions.push(
+    vscode.commands.registerCommand('devControlCenter.restartTerminal', async () => {
+      const active = terminalManager.getActiveSession();
+      if (active) {
+        terminalManager.restartSession(active.id);
+      }
+    })
+  );
+
+  // 9. Clear Terminal
+  context.subscriptions.push(
+    vscode.commands.registerCommand('devControlCenter.clearTerminal', async () => {
+      viewProvider.clearActiveTerminal();
+    })
+  );
+
+  // 10. Open Settings
+  context.subscriptions.push(
+    vscode.commands.registerCommand('devControlCenter.openSettings', async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.devControlCenterContainer');
+      viewProvider.focusTab('settings');
+    })
+  );
+
+  // 11. Kill Terminal
+  context.subscriptions.push(
+    vscode.commands.registerCommand('devControlCenter.killTerminal', async () => {
+      const active = terminalManager.getActiveSession();
+      if (active) {
+        terminalManager.killSession(active.id);
+      }
+    })
+  );
+
   // 8. Save Command (Quick Input UI)
   context.subscriptions.push(
     vscode.commands.registerCommand('devControlCenter.saveCommand', async () => {

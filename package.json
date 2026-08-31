@@ -70,6 +70,26 @@
         "icon": "$(save)"
       },
       {
+        "command": "devControlCenter.restartTerminal",
+        "title": "Dev Control Center: Restart Terminal",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "devControlCenter.clearTerminal",
+        "title": "Dev Control Center: Clear Terminal",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "devControlCenter.openSettings",
+        "title": "Dev Control Center: Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "devControlCenter.killTerminal",
+        "title": "Dev Control Center: Kill Terminal",
+        "icon": "$(trash)"
+      },
+      {
         "command": "devControlCenter.saveCommand",
         "title": "Dev Control Center: Save Command",
         "icon": "$(add)"
@@ -105,14 +125,44 @@
     "menus": {
       "view/title": [
         {
-          "command": "devControlCenter.refreshPorts",
+          "command": "devControlCenter.showPorts",
           "when": "view == devControlCenter.sidebarView",
           "group": "navigation@1"
         },
         {
-          "command": "devControlCenter.openInEditor",
+          "command": "devControlCenter.showCommands",
           "when": "view == devControlCenter.sidebarView",
           "group": "navigation@2"
+        },
+        {
+          "command": "devControlCenter.refreshPorts",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "devControlCenter.restartTerminal",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "devControlCenter.clearTerminal",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@5"
+        },
+        {
+          "command": "devControlCenter.openSettings",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@6"
+        },
+        {
+          "command": "devControlCenter.killTerminal",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@7"
+        },
+        {
+          "command": "devControlCenter.openInEditor",
+          "when": "view == devControlCenter.sidebarView",
+          "group": "navigation@8"
         }
       ]
     },

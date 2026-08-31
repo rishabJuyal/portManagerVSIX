@@ -74,4 +74,12 @@ export class DevControlCenterViewProvider implements vscode.WebviewViewProvider 
   public refreshPorts(): void {
     this.messageHandler?.refreshPorts(true);
   }
+
+  public clearActiveTerminal(): void {
+    if (this.view) {
+      this.view.webview.postMessage({
+        type: 'terminal:clear'
+      });
+    }
+  }
 }

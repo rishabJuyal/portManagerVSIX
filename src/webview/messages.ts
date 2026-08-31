@@ -59,4 +59,5 @@ export type ExtensionToWebviewMessage =
   | { type: 'settings:updated'; settings: ExtensionSettings }
   | { type: 'workspace:updated'; folders: WorkspaceFolderInfo[]; currentWorkspace: string }
   | { type: 'notification'; level: 'info' | 'warning' | 'error'; message: string }
-  | { type: 'switchTab'; tab: 'terminal' | 'ports' | 'commands' | 'settings' };
+  | { type: 'switchTab'; tab: 'terminal' | 'ports' | 'commands' | 'settings' }
+  | { type: 'terminal:clear' };

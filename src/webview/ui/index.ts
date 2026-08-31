@@ -123,6 +123,13 @@ class DevControlCenterApp {
           this.switchTab(msg.tab);
           break;
 
+        case 'terminal:clear':
+          if (this.activeSessionId) {
+            const instance = this.terminalInstances.get(this.activeSessionId);
+            instance?.xterm.clear();
+          }
+          break;
+
         case 'notification':
           this.showToast(msg.message, msg.level);
           break;
@@ -258,29 +265,15 @@ class DevControlCenterApp {
     app.innerHTML = `
       <nav class="nav-bar">
         <div class="nav-left">
-          <span class="nav-brand-title">
-            <i class="codicon codicon-terminal"></i>
-            <span>Terminal</span>
-          </span>
+          <div class="terminal-tabs-wrapper" id="terminal-tab-bar"></div>
+          <button class="icon-btn header-add-btn" id="btn-term-new" title="New Terminal (Alt+Shift+T)">
+            <i class="codicon codicon-add"></i>
+          </button>
         </div>
         <div class="nav-actions">
-          <button class="header-icon-btn" id="btn-header-ports" title="Active Ports (Click to toggle dropdown)">
-            <i class="codicon codicon-plug"></i>
-            <span class="btn-label">Ports</span>
-            <span class="badge" id="ports-count-badge">0</span>
-          </button>
-          <button class="header-icon-btn" id="btn-header-commands" title="Saved Commands (Click to toggle dropdown)">
-            <i class="codicon codicon-save"></i>
-            <span class="btn-label">Saved</span>
-            <span class="badge" id="commands-count-badge">0</span>
-          </button>
-          <div class="nav-separator"></div>
-          <button class="icon-btn" id="btn-global-refresh" title="Refresh Ports (Ctrl+R)">
-            <i class="codicon codicon-refresh"></i>
-          </button>
-          <button class="icon-btn" id="btn-open-settings" title="Settings">
-            <i class="codicon codicon-settings-gear"></i>
-          </button>
+          <span class="terminal-cwd-info" id="terminal-cwd-badge" title="Working Directory">
+            <i class="codicon codicon-folder"></i> <span id="terminal-cwd-text">~</span>
+          </span>
         </div>
       </nav>
 
@@ -313,6 +306,17 @@ class DevControlCenterApp {
           </button>
         </div>
         <div class="dropdown-body ports-list-container" id="ports-list-container"></div>
+        <div class="dropdown-resize-handle-left" id="dropdown-ports-resize-grip" title="Drag to resize dropdown">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+            <circle cx="2" cy="2" r="1"/>
+            <circle cx="2" cy="5" r="1"/>
+            <circle cx="5" cy="5" r="1"/>
+            <circle cx="2" cy="8" r="1"/>
+            <circle cx="5" cy="8" r="1"/>
+            <circle cx="8" cy="8" r="1"/>
+          </svg>
+        </div>
+        <div class="dropdown-resize-handle-bottom" id="dropdown-ports-resize-bottom" title="Drag to resize height"></div>
       </div>
 
       <!-- Saved Commands Dropdown Overlay -->
@@ -344,34 +348,21 @@ class DevControlCenterApp {
           </div>
         </div>
         <div class="dropdown-body commands-list-container" id="commands-list-container"></div>
+        <div class="dropdown-resize-handle-left" id="dropdown-commands-resize-grip" title="Drag to resize dropdown">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+            <circle cx="2" cy="2" r="1"/>
+            <circle cx="2" cy="5" r="1"/>
+            <circle cx="5" cy="5" r="1"/>
+            <circle cx="2" cy="8" r="1"/>
+            <circle cx="5" cy="8" r="1"/>
+            <circle cx="8" cy="8" r="1"/>
+          </svg>
+        </div>
+        <div class="dropdown-resize-handle-bottom" id="dropdown-commands-resize-bottom" title="Drag to resize height"></div>
       </div>
 
-      <!-- Terminal View (Primary) -->
-      <div id="view-terminal" class="view-container active">
-        <div class="terminal-view">
-          <div class="terminal-header">
-            <div class="terminal-tabs-wrapper" id="terminal-tab-bar"></div>
-            <div class="terminal-actions-bar">
-              <span class="terminal-cwd-info" id="terminal-cwd-badge" title="Working Directory">
-                <i class="codicon codicon-folder"></i> <span id="terminal-cwd-text">~</span>
-              </span>
-              <button class="icon-btn" id="btn-term-new" title="New Terminal (Alt+Shift+T)">
-                <i class="codicon codicon-add"></i>
-              </button>
-              <button class="icon-btn" id="btn-term-restart" title="Restart Terminal">
-                <i class="codicon codicon-debug-restart"></i>
-              </button>
-              <button class="icon-btn" id="btn-term-clear" title="Clear Terminal (Ctrl+L)">
-                <i class="codicon codicon-clear-all"></i>
-              </button>
-              <button class="icon-btn danger" id="btn-term-kill" title="Kill Terminal Process">
-                <i class="codicon codicon-trash"></i>
-              </button>
-            </div>
-          </div>
-          <div class="terminal-body" id="terminal-container"></div>
-        </div>
-      </div>
+      <!-- Terminal Body Container -->
+      <div class="terminal-body" id="terminal-container"></div>
 
       <div id="modal-backdrop" class="process-modal-backdrop" style="display: none;"></div>
       <div id="toast-container" style="position: fixed; bottom: 12px; right: 12px; z-index: 999; display: flex; flex-direction: column; gap: 6px;"></div>
@@ -476,6 +467,27 @@ class DevControlCenterApp {
         this.closeModal();
       }
     });
+
+    // Dropdown resize initialization
+    const portsDropdown = document.getElementById('dropdown-ports');
+    const portsResizeGrip = document.getElementById('dropdown-ports-resize-grip');
+    const portsResizeBottom = document.getElementById('dropdown-ports-resize-bottom');
+    if (portsDropdown && portsResizeGrip) {
+      this.initDropdownResize(portsDropdown, portsResizeGrip);
+    }
+    if (portsDropdown && portsResizeBottom) {
+      this.initDropdownBottomResize(portsDropdown, portsResizeBottom);
+    }
+
+    const commandsDropdown = document.getElementById('dropdown-commands');
+    const commandsResizeGrip = document.getElementById('dropdown-commands-resize-grip');
+    const commandsResizeBottom = document.getElementById('dropdown-commands-resize-bottom');
+    if (commandsDropdown && commandsResizeGrip) {
+      this.initDropdownResize(commandsDropdown, commandsResizeGrip);
+    }
+    if (commandsDropdown && commandsResizeBottom) {
+      this.initDropdownBottomResize(commandsDropdown, commandsResizeBottom);
+    }
   }
 
   public toggleDropdown(type: 'ports' | 'commands'): void {
@@ -537,9 +549,9 @@ class DevControlCenterApp {
     this.activeTab = tab;
 
     if (tab === 'ports') {
-      this.openDropdown('ports');
+      this.toggleDropdown('ports');
     } else if (tab === 'commands') {
-      this.openDropdown('commands');
+      this.toggleDropdown('commands');
     } else if (tab === 'settings') {
       this.closeDropdown();
       this.openSettingsModal();
@@ -1021,29 +1033,55 @@ class DevControlCenterApp {
             <div class="modal-title">
               <i class="codicon codicon-info"></i> Process Details [Port ${proc?.port || ''}]
             </div>
-            <button class="icon-btn" id="btn-modal-close"><i class="codicon codicon-close"></i></button>
+            <button class="icon-btn" id="btn-modal-close" title="Close"><i class="codicon codicon-close"></i></button>
           </div>
-          <div class="modal-grid">
-            <span class="label">PID:</span>
-            <span class="value">${proc?.pid ?? '-'}</span>
-            <span class="label">Name:</span>
-            <span class="value">${this.escapeHtml(proc?.name || '-')}</span>
-            <span class="label">Port:</span>
-            <span class="value">${proc?.port ?? '-'}</span>
-            <span class="label">Memory:</span>
-            <span class="value">${proc?.memory || 'N/A'}</span>
-            <span class="label">CPU:</span>
-            <span class="value">${proc?.cpu || 'N/A'}</span>
-            <span class="label">Started:</span>
-            <span class="value">${proc?.started || 'N/A'}</span>
-            <span class="label">Command:</span>
-            <span class="value" style="max-height: 100px; overflow-y: auto;">${this.escapeHtml(proc?.command || 'Command unavailable')}</span>
+          <div class="modal-body">
+            <div class="modal-grid-2col">
+              <div class="modal-info-item">
+                <span class="label">Port:</span>
+                <span class="value badge-port-value">${proc?.port ?? '-'}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">PID:</span>
+                <span class="value">${proc?.pid ?? '-'}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">Name:</span>
+                <span class="value" title="${this.escapeHtml(proc?.name || '-')}">${this.escapeHtml(proc?.name || '-')}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">Started:</span>
+                <span class="value">${proc?.started || 'N/A'}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">CPU:</span>
+                <span class="value">${proc?.cpu || 'N/A'}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">Memory:</span>
+                <span class="value">${proc?.memory || 'N/A'}</span>
+              </div>
+            </div>
+            <div class="modal-command-section">
+              <span class="label">Command:</span>
+              <div class="modal-command-box" title="Full Command Line">${this.escapeHtml(proc?.command || 'Command unavailable')}</div>
+            </div>
           </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" id="btn-modal-close-action">Close</button>
             <button class="btn btn-danger" id="btn-modal-kill-action">
               <i class="codicon codicon-close"></i> Terminate Process
             </button>
+          </div>
+          <div class="modal-resize-handle" id="modal-resize-grip" title="Drag to resize modal">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="8" cy="2" r="1"/>
+              <circle cx="8" cy="5" r="1"/>
+              <circle cx="5" cy="5" r="1"/>
+              <circle cx="8" cy="8" r="1"/>
+              <circle cx="5" cy="8" r="1"/>
+              <circle cx="2" cy="8" r="1"/>
+            </svg>
           </div>
         </div>
       `;
@@ -1059,29 +1097,47 @@ class DevControlCenterApp {
     } else if (this.activeModal === 'killConfirm') {
       const target = this.pendingKillTarget;
       backdrop.innerHTML = `
-        <div class="process-modal">
+        <div class="process-modal" style="width: 480px;">
           <div class="modal-header">
             <div class="modal-title" style="color: var(--dcc-danger);">
               <i class="codicon codicon-warning"></i> Confirm Process Termination
             </div>
-            <button class="icon-btn" id="btn-kill-cancel"><i class="codicon codicon-close"></i></button>
+            <button class="icon-btn" id="btn-kill-cancel" title="Close"><i class="codicon codicon-close"></i></button>
           </div>
-          <div style="font-size: 12px; line-height: 1.5;">
-            Are you sure you want to terminate the process running on port <strong>${target?.port}</strong>?
-          </div>
-          <div class="modal-grid" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 3px;">
-            <span class="label">Process:</span>
-            <span class="value">${this.escapeHtml(target?.processName || '-')}</span>
-            <span class="label">PID:</span>
-            <span class="value">${target?.pid}</span>
-            <span class="label">Port:</span>
-            <span class="value">${target?.port}</span>
+          <div class="modal-body">
+            <div style="font-size: 12px; line-height: 1.4;">
+              Are you sure you want to terminate the process running on port <strong>${target?.port}</strong>?
+            </div>
+            <div class="modal-grid-2col" style="background: rgba(0,0,0,0.2); padding: 8px 10px; border-radius: 3px;">
+              <div class="modal-info-item">
+                <span class="label">Process:</span>
+                <span class="value">${this.escapeHtml(target?.processName || '-')}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">PID:</span>
+                <span class="value">${target?.pid}</span>
+              </div>
+              <div class="modal-info-item">
+                <span class="label">Port:</span>
+                <span class="value badge-port-value">${target?.port}</span>
+              </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" id="btn-kill-cancel-action">Cancel</button>
             <button class="btn btn-danger" id="btn-kill-confirm-action">
               <i class="codicon codicon-trash"></i> Kill Process
             </button>
+          </div>
+          <div class="modal-resize-handle" id="modal-resize-grip" title="Drag to resize modal">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="8" cy="2" r="1"/>
+              <circle cx="8" cy="5" r="1"/>
+              <circle cx="5" cy="5" r="1"/>
+              <circle cx="8" cy="8" r="1"/>
+              <circle cx="5" cy="8" r="1"/>
+              <circle cx="2" cy="8" r="1"/>
+            </svg>
           </div>
         </div>
       `;
@@ -1104,37 +1160,41 @@ class DevControlCenterApp {
       const cmd = isEdit ? this.commands.find(c => c.id === this.editingCommandId) : null;
 
       backdrop.innerHTML = `
-        <div class="process-modal" style="max-width: 480px;">
+        <div class="process-modal">
           <div class="modal-header">
             <div class="modal-title">
               <i class="codicon codicon-save"></i> ${isEdit ? 'Edit Command' : 'Save Command'}
             </div>
-            <button class="icon-btn" id="btn-cmd-form-close"><i class="codicon codicon-close"></i></button>
+            <button class="icon-btn" id="btn-cmd-form-close" title="Close"><i class="codicon codicon-close"></i></button>
           </div>
-          <form id="save-command-form" style="display: flex; flex-direction: column; gap: 10px;">
-            <div class="form-group">
-              <label for="cmd-form-name">Command Name *</label>
-              <input type="text" id="cmd-form-name" class="form-input" placeholder="e.g. Start Dev Server" value="${this.escapeHtml(cmd?.name || '')}" required />
-            </div>
-            <div class="form-group">
-              <label for="cmd-form-cmd">Command String *</label>
-              <textarea id="cmd-form-cmd" class="form-textarea" placeholder="e.g. npm run dev" required>${this.escapeHtml(cmd?.command || '')}</textarea>
-            </div>
-            <div class="form-group">
-              <label for="cmd-form-desc">Description (Optional)</label>
-              <input type="text" id="cmd-form-desc" class="form-input" placeholder="e.g. Starts frontend with Next.js" value="${this.escapeHtml(cmd?.description || '')}" />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="cmd-form-scope">Scope</label>
-                <select id="cmd-form-scope" class="form-select">
-                  <option value="workspace" ${cmd?.scope === 'workspace' || !cmd ? 'selected' : ''}>Workspace Specific</option>
-                  <option value="global" ${cmd?.scope === 'global' ? 'selected' : ''}>Global (All Projects)</option>
-                </select>
+          <form id="save-command-form" class="modal-form">
+            <div class="modal-body" style="gap: 10px;">
+              <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                  <label for="cmd-form-name">Command Name *</label>
+                  <input type="text" id="cmd-form-name" class="form-input" placeholder="e.g. Start Dev Server" value="${this.escapeHtml(cmd?.name || '')}" required />
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label for="cmd-form-scope">Scope</label>
+                  <select id="cmd-form-scope" class="form-select">
+                    <option value="workspace" ${cmd?.scope === 'workspace' || !cmd ? 'selected' : ''}>Workspace Specific</option>
+                    <option value="global" ${cmd?.scope === 'global' ? 'selected' : ''}>Global (All Projects)</option>
+                  </select>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="cmd-form-cwd">Working Directory</label>
-                <input type="text" id="cmd-form-cwd" class="form-input" placeholder="Default Workspace" value="${this.escapeHtml(cmd?.workingDirectory || '')}" />
+              <div class="form-group" style="flex: 1;">
+                <label for="cmd-form-cmd">Command String *</label>
+                <textarea id="cmd-form-cmd" class="form-textarea" placeholder="e.g. npm run dev" style="min-height: 55px; height: 60px;" required>${this.escapeHtml(cmd?.command || '')}</textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label for="cmd-form-desc">Description (Optional)</label>
+                  <input type="text" id="cmd-form-desc" class="form-input" placeholder="e.g. Starts frontend with Next.js" value="${this.escapeHtml(cmd?.description || '')}" />
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label for="cmd-form-cwd">Working Directory</label>
+                  <input type="text" id="cmd-form-cwd" class="form-input" placeholder="Default Workspace" value="${this.escapeHtml(cmd?.workingDirectory || '')}" />
+                </div>
               </div>
             </div>
             <div class="modal-actions">
@@ -1144,6 +1204,16 @@ class DevControlCenterApp {
               </button>
             </div>
           </form>
+          <div class="modal-resize-handle" id="modal-resize-grip" title="Drag to resize modal">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="8" cy="2" r="1"/>
+              <circle cx="8" cy="5" r="1"/>
+              <circle cx="5" cy="5" r="1"/>
+              <circle cx="8" cy="8" r="1"/>
+              <circle cx="5" cy="8" r="1"/>
+              <circle cx="2" cy="8" r="1"/>
+            </svg>
+          </div>
         </div>
       `;
 
@@ -1177,29 +1247,33 @@ class DevControlCenterApp {
       });
     } else if (this.activeModal === 'settings') {
       backdrop.innerHTML = `
-        <div class="process-modal" style="max-width: 440px;">
+        <div class="process-modal" style="width: 500px;">
           <div class="modal-header">
             <div class="modal-title">
               <i class="codicon codicon-settings-gear"></i> Extension Settings
             </div>
-            <button class="icon-btn" id="btn-settings-close"><i class="codicon codicon-close"></i></button>
+            <button class="icon-btn" id="btn-settings-close" title="Close"><i class="codicon codicon-close"></i></button>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
-            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
-              <span>Confirm Before Kill</span>
-              <input type="checkbox" id="setting-confirm-kill" ${this.settings.confirmBeforeKill ? 'checked' : ''} />
-            </label>
-            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
-              <span>Auto Refresh Ports</span>
-              <input type="checkbox" id="setting-auto-refresh" ${this.settings.autoRefreshPorts ? 'checked' : ''} />
-            </label>
-            <div class="form-group">
-              <label for="setting-refresh-interval">Port Refresh Interval (ms)</label>
-              <input type="number" id="setting-refresh-interval" class="form-input" min="1000" step="500" value="${this.settings.portRefreshInterval || 3000}" />
+          <div class="modal-body" style="gap: 10px;">
+            <div class="form-row" style="align-items: center; justify-content: space-between; background: rgba(0,0,0,0.15); padding: 6px 10px; border-radius: 3px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px;">
+                <input type="checkbox" id="setting-confirm-kill" ${this.settings.confirmBeforeKill ? 'checked' : ''} />
+                <span>Confirm Before Kill</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px;">
+                <input type="checkbox" id="setting-auto-refresh" ${this.settings.autoRefreshPorts ? 'checked' : ''} />
+                <span>Auto Refresh Ports</span>
+              </label>
             </div>
-            <div class="form-group">
-              <label for="setting-font-size">Terminal Font Size (px)</label>
-              <input type="number" id="setting-font-size" class="form-input" min="8" max="32" value="${this.settings.terminalFontSize || 13}" />
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label for="setting-refresh-interval">Port Refresh Interval (ms)</label>
+                <input type="number" id="setting-refresh-interval" class="form-input" min="1000" step="500" value="${this.settings.portRefreshInterval || 3000}" />
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="setting-font-size">Terminal Font Size (px)</label>
+                <input type="number" id="setting-font-size" class="form-input" min="8" max="32" value="${this.settings.terminalFontSize || 13}" />
+              </div>
             </div>
             <div class="form-group">
               <label for="setting-run-loc">Default Command Run Location</label>
@@ -1211,6 +1285,16 @@ class DevControlCenterApp {
           </div>
           <div class="modal-actions">
             <button class="btn btn-primary" id="btn-settings-save">Done</button>
+          </div>
+          <div class="modal-resize-handle" id="modal-resize-grip" title="Drag to resize modal">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="8" cy="2" r="1"/>
+              <circle cx="8" cy="5" r="1"/>
+              <circle cx="5" cy="5" r="1"/>
+              <circle cx="8" cy="8" r="1"/>
+              <circle cx="5" cy="8" r="1"/>
+              <circle cx="2" cy="8" r="1"/>
+            </svg>
           </div>
         </div>
       `;
@@ -1232,6 +1316,119 @@ class DevControlCenterApp {
         this.closeModal();
       });
     }
+
+    const modal = backdrop.querySelector('.process-modal') as HTMLElement;
+    const grip = document.getElementById('modal-resize-grip');
+    if (modal && grip) {
+      this.initModalResize(modal, grip);
+    }
+  }
+
+  private initModalResize(modalElement: HTMLElement, handleElement: HTMLElement): void {
+    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleElement.classList.add('active');
+      document.body.style.cursor = 'nwse-resize';
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const rect = modalElement.getBoundingClientRect();
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        moveEvent.preventDefault();
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+
+        const newWidth = Math.min(Math.max(320, startWidth + deltaX), window.innerWidth * 0.96);
+        const newHeight = Math.min(Math.max(160, startHeight + deltaY), window.innerHeight * 0.92);
+
+        modalElement.style.width = `${newWidth}px`;
+        modalElement.style.height = `${newHeight}px`;
+        modalElement.style.maxWidth = 'none';
+        modalElement.style.maxHeight = 'none';
+      };
+
+      const onMouseUp = () => {
+        handleElement.classList.remove('active');
+        document.body.style.cursor = '';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  private initDropdownResize(dropdownElement: HTMLElement, handleElement: HTMLElement): void {
+    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleElement.classList.add('active');
+      document.body.style.cursor = 'nesw-resize';
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const rect = dropdownElement.getBoundingClientRect();
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        moveEvent.preventDefault();
+        const deltaX = startX - moveEvent.clientX;
+        const deltaY = moveEvent.clientY - startY;
+
+        const newWidth = Math.min(Math.max(320, startWidth + deltaX), window.innerWidth - 16);
+        const newHeight = Math.min(Math.max(180, startHeight + deltaY), window.innerHeight - 50);
+
+        dropdownElement.style.width = `${newWidth}px`;
+        dropdownElement.style.height = `${newHeight}px`;
+        dropdownElement.style.maxHeight = 'none';
+      };
+
+      const onMouseUp = () => {
+        handleElement.classList.remove('active');
+        document.body.style.cursor = '';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  private initDropdownBottomResize(dropdownElement: HTMLElement, handleElement: HTMLElement): void {
+    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.body.style.cursor = 'ns-resize';
+
+      const startY = e.clientY;
+      const rect = dropdownElement.getBoundingClientRect();
+      const startHeight = rect.height;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        moveEvent.preventDefault();
+        const deltaY = moveEvent.clientY - startY;
+
+        const newHeight = Math.min(Math.max(180, startHeight + deltaY), window.innerHeight - 50);
+        dropdownElement.style.height = `${newHeight}px`;
+        dropdownElement.style.maxHeight = 'none';
+      };
+
+      const onMouseUp = () => {
+        document.body.style.cursor = '';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
   }
 
   private openSaveCommandModal(commandId?: string): void {
