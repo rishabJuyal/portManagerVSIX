@@ -127,6 +127,8 @@ class DevControlCenterApp {
           if (this.activeSessionId) {
             const instance = this.terminalInstances.get(this.activeSessionId);
             instance?.xterm.clear();
+            instance?.xterm.reset();
+            this.postToExtension({ type: 'terminal:clear', id: this.activeSessionId });
           }
           break;
 
@@ -239,9 +241,11 @@ class DevControlCenterApp {
 
   private handleTerminalScrollback(id: string, data: string): void {
     const instance = this.terminalInstances.get(id);
-    if (instance && data && data.length > 0) {
+    if (instance) {
       instance.xterm.reset();
-      instance.xterm.write(data);
+      if (data && data.length > 0) {
+        instance.xterm.write(data);
+      }
     }
   }
 
@@ -306,6 +310,7 @@ class DevControlCenterApp {
             <circle cx="8" cy="8" r="1"/>
           </svg>
         </div>
+        <div class="dropdown-resize-handle-edge-left" id="dropdown-ports-resize-left" title="Drag to resize width"></div>
         <div class="dropdown-resize-handle-bottom" id="dropdown-ports-resize-bottom" title="Drag to resize height"></div>
       </div>
 
@@ -348,6 +353,7 @@ class DevControlCenterApp {
             <circle cx="8" cy="8" r="1"/>
           </svg>
         </div>
+        <div class="dropdown-resize-handle-edge-left" id="dropdown-commands-resize-left" title="Drag to resize width"></div>
         <div class="dropdown-resize-handle-bottom" id="dropdown-commands-resize-bottom" title="Drag to resize height"></div>
       </div>
 
@@ -406,6 +412,8 @@ class DevControlCenterApp {
       if (this.activeSessionId) {
         const instance = this.terminalInstances.get(this.activeSessionId);
         instance?.xterm.clear();
+        instance?.xterm.reset();
+        this.postToExtension({ type: 'terminal:clear', id: this.activeSessionId });
       }
     });
 
@@ -461,23 +469,44 @@ class DevControlCenterApp {
     // Dropdown resize initialization
     const portsDropdown = document.getElementById('dropdown-ports');
     const portsResizeGrip = document.getElementById('dropdown-ports-resize-grip');
+    const portsResizeLeft = document.getElementById('dropdown-ports-resize-left');
     const portsResizeBottom = document.getElementById('dropdown-ports-resize-bottom');
-    if (portsDropdown && portsResizeGrip) {
-      this.initDropdownResize(portsDropdown, portsResizeGrip);
-    }
-    if (portsDropdown && portsResizeBottom) {
-      this.initDropdownBottomResize(portsDropdown, portsResizeBottom);
+    if (portsDropdown) {
+      if (portsResizeGrip) this.initElementResize(portsDropdown, portsResizeGrip, 'both-corner-left');
+      if (portsResizeLeft) this.initElementResize(portsDropdown, portsResizeLeft, 'width-left');
+      if (portsResizeBottom) this.initElementResize(portsDropdown, portsResizeBottom, 'height-bottom');
     }
 
     const commandsDropdown = document.getElementById('dropdown-commands');
     const commandsResizeGrip = document.getElementById('dropdown-commands-resize-grip');
+    const commandsResizeLeft = document.getElementById('dropdown-commands-resize-left');
     const commandsResizeBottom = document.getElementById('dropdown-commands-resize-bottom');
-    if (commandsDropdown && commandsResizeGrip) {
-      this.initDropdownResize(commandsDropdown, commandsResizeGrip);
+    if (commandsDropdown) {
+      if (commandsResizeGrip) this.initElementResize(commandsDropdown, commandsResizeGrip, 'both-corner-left');
+      if (commandsResizeLeft) this.initElementResize(commandsDropdown, commandsResizeLeft, 'width-left');
+      if (commandsResizeBottom) this.initElementResize(commandsDropdown, commandsResizeBottom, 'height-bottom');
     }
-    if (commandsDropdown && commandsResizeBottom) {
-      this.initDropdownBottomResize(commandsDropdown, commandsResizeBottom);
-    }
+
+    // Responsive compact observer for dropdowns
+    const dropdownObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        const width = entry.contentRect.width;
+        if (width < 340) {
+          el.classList.add('is-ultra-compact');
+          el.classList.add('is-compact');
+        } else if (width < 450) {
+          el.classList.remove('is-ultra-compact');
+          el.classList.add('is-compact');
+        } else {
+          el.classList.remove('is-ultra-compact');
+          el.classList.remove('is-compact');
+        }
+      }
+    });
+
+    if (portsDropdown) dropdownObserver.observe(portsDropdown);
+    if (commandsDropdown) dropdownObserver.observe(commandsDropdown);
   }
 
   public toggleDropdown(type: 'ports' | 'commands'): void {
@@ -648,6 +677,69 @@ class DevControlCenterApp {
     xterm.loadAddon(webLinksAddon);
     xterm.open(element);
 
+    // 1. Intercept Ctrl+V / Cmd+V / Shift+Insert for Paste, and Ctrl+C for Copy
+    xterm.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      const isPaste =
+        (e.type === 'keydown' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') ||
+        (e.type === 'keydown' && e.shiftKey && e.key === 'Insert');
+
+      if (isPaste) {
+        navigator.clipboard.readText().then(text => {
+          if (text) {
+            const cleanText = text.replace(/[\r\n]+$/, '');
+            this.postToExtension({ type: 'terminal:input', id: session.id, data: cleanText });
+          }
+        }).catch(err => {
+          console.warn('Clipboard read error in xterm:', err);
+        });
+        return false; // prevent xterm from emitting \x16
+      }
+
+      const isCopy = e.type === 'keydown' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
+      if (isCopy && xterm.hasSelection()) {
+        const sel = xterm.getSelection();
+        if (sel) {
+          navigator.clipboard.writeText(sel);
+        }
+        return false; // don't send SIGINT if user is copying selection
+      }
+
+      return true;
+    });
+
+    // 2. Right-click: paste clipboard text (or copy if text is selected)
+    element.addEventListener('contextmenu', async (e: MouseEvent) => {
+      e.preventDefault();
+      if (xterm.hasSelection()) {
+        const sel = xterm.getSelection();
+        if (sel) {
+          await navigator.clipboard.writeText(sel);
+          xterm.clearSelection();
+          this.showToast('Copied selection to clipboard', 'info');
+          return;
+        }
+      }
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          const cleanText = text.replace(/[\r\n]+$/, '');
+          this.postToExtension({ type: 'terminal:input', id: session.id, data: cleanText });
+        }
+      } catch (err) {
+        console.warn('Right-click paste failed:', err);
+      }
+    });
+
+    // 3. Browser paste event on terminal DOM element
+    element.addEventListener('paste', (e: ClipboardEvent) => {
+      e.preventDefault();
+      const text = e.clipboardData?.getData('text');
+      if (text) {
+        const cleanText = text.replace(/[\r\n]+$/, '');
+        this.postToExtension({ type: 'terminal:input', id: session.id, data: cleanText });
+      }
+    });
+
     xterm.onData(data => {
       this.postToExtension({ type: 'terminal:input', id: session.id, data });
     });
@@ -802,11 +894,11 @@ class DevControlCenterApp {
       <table class="ports-table">
         <thead>
           <tr>
-            <th>Port</th>
-            <th>Process</th>
-            <th>PID</th>
-            <th>Runtime / Framework</th>
-            <th style="text-align: right;">Actions</th>
+            <th class="col-port">Port</th>
+            <th class="col-process">Process</th>
+            <th class="col-pid">PID</th>
+            <th class="col-framework">Runtime / Framework</th>
+            <th class="col-actions" style="text-align: right;">Actions</th>
           </tr>
         </thead>
         <tbody id="ports-table-body"></tbody>
@@ -827,21 +919,27 @@ class DevControlCenterApp {
         : `<span style="opacity: 0.4;">-</span>`;
 
       row.innerHTML = `
-        <td>
+        <td class="col-port">
           <span class="port-status-dot"></span>
           <span class="port-number">${port.port}</span>
         </td>
-        <td>
-          <span class="process-tag">
-            <i class="codicon codicon-server-process"></i>
-            ${this.escapeHtml(port.processName)}
-          </span>
+        <td class="col-process">
+          <div class="process-cell">
+            <span class="process-tag">
+              <i class="codicon codicon-server-process"></i>
+              ${this.escapeHtml(port.processName)}
+            </span>
+            <div class="compact-port-meta">
+              <span class="pid-badge">PID ${port.pid}</span>
+              ${port.framework ? `<span class="framework-badge">${this.escapeHtml(port.framework)}</span>` : (port.runtime ? `<span class="framework-badge" style="opacity: 0.8;">${this.escapeHtml(port.runtime)}</span>` : '')}
+            </div>
+          </div>
         </td>
-        <td>
+        <td class="col-pid">
           <span class="pid-badge">${port.pid}</span>
         </td>
-        <td>${frameworkBadge}</td>
-        <td>
+        <td class="col-framework">${frameworkBadge}</td>
+        <td class="col-actions">
           <div class="row-actions">
             <button class="icon-btn btn-port-open" title="Open http://localhost:${port.port} in browser">
               <i class="codicon codicon-globe"></i>
@@ -965,11 +1063,17 @@ class DevControlCenterApp {
             <button class="icon-btn btn-run-new" title="Run in New Terminal">
               <i class="codicon codicon-plus"></i>
             </button>
+            <button class="icon-btn btn-insert-cmd" title="Paste into Active Terminal">
+              <i class="codicon codicon-terminal"></i>
+            </button>
+            <button class="icon-btn btn-copy-clipboard" title="Copy Command to Clipboard">
+              <i class="codicon codicon-copy"></i>
+            </button>
             <button class="icon-btn btn-edit-cmd" title="Edit Command">
               <i class="codicon codicon-edit"></i>
             </button>
             <button class="icon-btn btn-dup-cmd" title="Duplicate Command">
-              <i class="codicon codicon-copy"></i>
+              <i class="codicon codicon-repo-forked"></i>
             </button>
             <button class="icon-btn danger btn-del-cmd" title="Delete Command">
               <i class="codicon codicon-trash"></i>
@@ -977,7 +1081,7 @@ class DevControlCenterApp {
           </div>
         </div>
         ${cmd.description ? `<div class="command-description">${this.escapeHtml(cmd.description)}</div>` : ''}
-        <div class="command-snippet">${this.escapeHtml(cmd.command)}</div>
+        <div class="command-snippet" title="Click to copy to clipboard">${this.escapeHtml(cmd.command)}</div>
       `;
 
       card.querySelector('.btn-run-cmd')?.addEventListener('click', () => {
@@ -990,6 +1094,27 @@ class DevControlCenterApp {
         this.postToExtension({ type: 'commands:run', id: cmd.id, inNewTerminal: true });
         this.closeDropdown();
         this.showToast(`Running "${cmd.name}" in new terminal...`, 'info');
+      });
+
+      card.querySelector('.btn-insert-cmd')?.addEventListener('click', () => {
+        const active = this.activeSessionId;
+        if (active) {
+          this.postToExtension({ type: 'terminal:input', id: active, data: cmd.command });
+          this.closeDropdown();
+          this.showToast(`Pasted "${cmd.name}" into terminal`, 'info');
+        } else {
+          this.showToast('No active terminal to paste into', 'warning');
+        }
+      });
+
+      card.querySelector('.btn-copy-clipboard')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(cmd.command);
+        this.showToast(`Copied "${cmd.command}" to clipboard!`, 'info');
+      });
+
+      card.querySelector('.command-snippet')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(cmd.command);
+        this.showToast(`Copied "${cmd.command}" to clipboard!`, 'info');
       });
 
       card.querySelector('.btn-edit-cmd')?.addEventListener('click', () => {
@@ -1081,6 +1206,8 @@ class DevControlCenterApp {
               <circle cx="2" cy="8" r="1"/>
             </svg>
           </div>
+          <div class="modal-resize-handle-edge-right" id="modal-resize-right" title="Drag to resize width"></div>
+          <div class="modal-resize-handle-edge-bottom" id="modal-resize-bottom" title="Drag to resize height"></div>
         </div>
       `;
 
@@ -1137,6 +1264,8 @@ class DevControlCenterApp {
               <circle cx="2" cy="8" r="1"/>
             </svg>
           </div>
+          <div class="modal-resize-handle-edge-right" id="modal-resize-right" title="Drag to resize width"></div>
+          <div class="modal-resize-handle-edge-bottom" id="modal-resize-bottom" title="Drag to resize height"></div>
         </div>
       `;
 
@@ -1212,6 +1341,8 @@ class DevControlCenterApp {
               <circle cx="2" cy="8" r="1"/>
             </svg>
           </div>
+          <div class="modal-resize-handle-edge-right" id="modal-resize-right" title="Drag to resize width"></div>
+          <div class="modal-resize-handle-edge-bottom" id="modal-resize-bottom" title="Drag to resize height"></div>
         </div>
       `;
 
@@ -1294,6 +1425,8 @@ class DevControlCenterApp {
               <circle cx="2" cy="8" r="1"/>
             </svg>
           </div>
+          <div class="modal-resize-handle-edge-right" id="modal-resize-right" title="Drag to resize width"></div>
+          <div class="modal-resize-handle-edge-bottom" id="modal-resize-bottom" title="Drag to resize height"></div>
         </div>
       `;
 
@@ -1317,115 +1450,87 @@ class DevControlCenterApp {
 
     const modal = backdrop.querySelector('.process-modal') as HTMLElement;
     const grip = document.getElementById('modal-resize-grip');
-    if (modal && grip) {
-      this.initModalResize(modal, grip);
+    const rightHandle = document.getElementById('modal-resize-right');
+    const bottomHandle = document.getElementById('modal-resize-bottom');
+    if (modal) {
+      if (grip) this.initElementResize(modal, grip, 'both-corner-right');
+      if (rightHandle) this.initElementResize(modal, rightHandle, 'width-right');
+      if (bottomHandle) this.initElementResize(modal, bottomHandle, 'height-bottom');
     }
   }
 
-  private initModalResize(modalElement: HTMLElement, handleElement: HTMLElement): void {
-    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
+  private initElementResize(
+    targetEl: HTMLElement,
+    handleEl: HTMLElement,
+    direction: 'both-corner-left' | 'both-corner-right' | 'width-left' | 'width-right' | 'height-bottom'
+  ): void {
+    handleEl.addEventListener('pointerdown', (e: PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      handleElement.classList.add('active');
-      document.body.style.cursor = 'nwse-resize';
+      handleEl.classList.add('active');
+      handleEl.setPointerCapture(e.pointerId);
+
+      if (direction === 'both-corner-left') document.body.style.cursor = 'nesw-resize';
+      else if (direction === 'both-corner-right') document.body.style.cursor = 'nwse-resize';
+      else if (direction === 'width-left' || direction === 'width-right') document.body.style.cursor = 'ew-resize';
+      else if (direction === 'height-bottom') document.body.style.cursor = 'ns-resize';
 
       const startX = e.clientX;
       const startY = e.clientY;
-      const rect = modalElement.getBoundingClientRect();
+      const rect = targetEl.getBoundingClientRect();
       const startWidth = rect.width;
       const startHeight = rect.height;
 
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        moveEvent.preventDefault();
-        const deltaX = moveEvent.clientX - startX;
-        const deltaY = moveEvent.clientY - startY;
+      const onPointerMove = (moveEvt: PointerEvent) => {
+        moveEvt.preventDefault();
+        const deltaX = moveEvt.clientX - startX;
+        const deltaY = moveEvt.clientY - startY;
 
-        const newWidth = Math.min(Math.max(320, startWidth + deltaX), window.innerWidth * 0.96);
-        const newHeight = Math.min(Math.max(160, startHeight + deltaY), window.innerHeight * 0.92);
-
-        modalElement.style.width = `${newWidth}px`;
-        modalElement.style.height = `${newHeight}px`;
-        modalElement.style.maxWidth = 'none';
-        modalElement.style.maxHeight = 'none';
+        if (direction === 'both-corner-left') {
+          const newW = Math.min(Math.max(200, startWidth - deltaX), window.innerWidth - 8);
+          const newH = Math.min(Math.max(160, startHeight + deltaY), window.innerHeight - 40);
+          targetEl.style.width = `${newW}px`;
+          targetEl.style.height = `${newH}px`;
+          targetEl.style.maxWidth = 'none';
+          targetEl.style.maxHeight = 'none';
+        } else if (direction === 'both-corner-right') {
+          const newW = Math.min(Math.max(220, startWidth + deltaX), window.innerWidth - 12);
+          const newH = Math.min(Math.max(160, startHeight + deltaY), window.innerHeight - 30);
+          targetEl.style.width = `${newW}px`;
+          targetEl.style.height = `${newH}px`;
+          targetEl.style.maxWidth = 'none';
+          targetEl.style.maxHeight = 'none';
+        } else if (direction === 'width-left') {
+          const newW = Math.min(Math.max(200, startWidth - deltaX), window.innerWidth - 8);
+          targetEl.style.width = `${newW}px`;
+          targetEl.style.maxWidth = 'none';
+        } else if (direction === 'width-right') {
+          const newW = Math.min(Math.max(220, startWidth + deltaX), window.innerWidth - 12);
+          targetEl.style.width = `${newW}px`;
+          targetEl.style.maxWidth = 'none';
+        } else if (direction === 'height-bottom') {
+          const newH = Math.min(Math.max(160, startHeight + deltaY), window.innerHeight - 40);
+          targetEl.style.height = `${newH}px`;
+          targetEl.style.maxHeight = 'none';
+        }
       };
 
-      const onMouseUp = () => {
-        handleElement.classList.remove('active');
+      const onPointerUp = (upEvt: PointerEvent) => {
+        handleEl.classList.remove('active');
         document.body.style.cursor = '';
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
+        try {
+          handleEl.releasePointerCapture(upEvt.pointerId);
+        } catch {
+          // ignore
+        }
+        handleEl.removeEventListener('pointermove', onPointerMove);
+        handleEl.removeEventListener('pointerup', onPointerUp);
+        handleEl.removeEventListener('pointercancel', onPointerUp);
       };
 
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-  }
-
-  private initDropdownResize(dropdownElement: HTMLElement, handleElement: HTMLElement): void {
-    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleElement.classList.add('active');
-      document.body.style.cursor = 'nesw-resize';
-
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const rect = dropdownElement.getBoundingClientRect();
-      const startWidth = rect.width;
-      const startHeight = rect.height;
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        moveEvent.preventDefault();
-        const deltaX = startX - moveEvent.clientX;
-        const deltaY = moveEvent.clientY - startY;
-
-        const newWidth = Math.min(Math.max(320, startWidth + deltaX), window.innerWidth - 16);
-        const newHeight = Math.min(Math.max(180, startHeight + deltaY), window.innerHeight - 50);
-
-        dropdownElement.style.width = `${newWidth}px`;
-        dropdownElement.style.height = `${newHeight}px`;
-        dropdownElement.style.maxHeight = 'none';
-      };
-
-      const onMouseUp = () => {
-        handleElement.classList.remove('active');
-        document.body.style.cursor = '';
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-  }
-
-  private initDropdownBottomResize(dropdownElement: HTMLElement, handleElement: HTMLElement): void {
-    handleElement.addEventListener('mousedown', (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      document.body.style.cursor = 'ns-resize';
-
-      const startY = e.clientY;
-      const rect = dropdownElement.getBoundingClientRect();
-      const startHeight = rect.height;
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        moveEvent.preventDefault();
-        const deltaY = moveEvent.clientY - startY;
-
-        const newHeight = Math.min(Math.max(180, startHeight + deltaY), window.innerHeight - 50);
-        dropdownElement.style.height = `${newHeight}px`;
-        dropdownElement.style.maxHeight = 'none';
-      };
-
-      const onMouseUp = () => {
-        document.body.style.cursor = '';
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      handleEl.addEventListener('pointermove', onPointerMove);
+      handleEl.addEventListener('pointerup', onPointerUp);
+      handleEl.addEventListener('pointercancel', onPointerUp);
     });
   }
 

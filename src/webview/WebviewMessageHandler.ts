@@ -161,6 +161,11 @@ export class WebviewMessageHandler {
           break;
         }
 
+        case 'terminal:clear': {
+          this.terminalManager.clearSession(message.id);
+          break;
+        }
+
         case 'terminal:input': {
           this.terminalManager.sendInput(message.id, message.data);
           break;

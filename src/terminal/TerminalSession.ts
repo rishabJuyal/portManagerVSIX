@@ -146,8 +146,19 @@ export class TerminalSession extends EventEmitter {
     return this.scrollbackBuffer.join('');
   }
 
+  public clearScrollback(): void {
+    this.scrollbackBuffer = [];
+    if (this.lastPrompt) {
+      this.scrollbackBuffer.push(this.lastPrompt + this.currentLine);
+    }
+  }
+
   public getHistory(): string[] {
     return this.historyManager.getHistory();
+  }
+
+  public getCurrentLine(): string {
+    return this.currentLine;
   }
 
   /**
@@ -336,6 +347,12 @@ export class TerminalSession extends EventEmitter {
         this.historyManager.append(cmdToExecute.trim());
       }
 
+      // If user typed cls or clear, clear the scrollback buffer as well
+      const trimmedLower = cmdToExecute.trim().toLowerCase();
+      if (trimmedLower === 'cls' || trimmedLower === 'clear') {
+        this.clearScrollback();
+      }
+
       this.currentLine = '';
       this.cursorPos = 0;
       this.historyIndex = -1;
@@ -352,7 +369,7 @@ export class TerminalSession extends EventEmitter {
       return;
     }
 
-    // 15. Handle standard character typing & pasting
+    // 15. Handle standard character typing & input with newlines
     if (this.isAtPrompt || this.process) {
       if (data.includes('\n') || data.includes('\r')) {
         const lines = data.split(/\r\n|\r|\n/);
@@ -364,12 +381,16 @@ export class TerminalSession extends EventEmitter {
             if (this.currentLine.trim().length > 0) {
               this.historyManager.append(this.currentLine.trim());
             }
+            const trimmedLower = this.currentLine.trim().toLowerCase();
+            if (trimmedLower === 'cls' || trimmedLower === 'clear') {
+              this.clearScrollback();
+            }
             if (this.process.stdin) {
               this.process.stdin.write(this.currentLine + '\r\n');
             }
             this.currentLine = '';
             this.cursorPos = 0;
-          } else {
+          } else if (line.length > 0) {
             this.currentLine += line;
             this.cursorPos += line.length;
             this.pushData(line);
@@ -378,15 +399,20 @@ export class TerminalSession extends EventEmitter {
         return;
       }
 
+      if (data === '\x16') {
+        // Raw Ctrl+V character (SYN) - ignore to avoid prompt corruption
+        return;
+      }
+
       if (this.cursorPos === this.currentLine.length) {
         this.currentLine += data;
         this.cursorPos += data.length;
         this.pushData(data);
       } else {
-        this.currentLine = this.currentLine.slice(0, this.cursorPos) + data + this.currentLine.slice(this.cursorPos);
         const tail = this.currentLine.slice(this.cursorPos);
+        this.currentLine = this.currentLine.slice(0, this.cursorPos) + data + tail;
         this.cursorPos += data.length;
-        this.pushData(tail + '\x1b[' + (tail.length - data.length) + 'D');
+        this.pushData(data + tail + (tail.length > 0 ? `\x1b[${tail.length}D` : ''));
       }
     }
   }

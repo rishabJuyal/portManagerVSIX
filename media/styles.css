@@ -194,10 +194,10 @@ body {
   right: 6px;
   width: 640px;
   height: 480px;
-  min-width: 320px;
-  min-height: 200px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 46px);
+  min-width: 260px;
+  min-height: 180px;
+  max-width: calc(100vw - 12px);
+  max-height: calc(100vh - 42px);
   background-color: var(--dcc-card-bg);
   border: 1px solid var(--dcc-card-border);
   border-radius: 6px;
@@ -207,6 +207,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+  container-type: inline-size;
   animation: dropdownSlideDown 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -263,6 +264,44 @@ body {
   background-color: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid var(--dcc-border-color);
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+  position: relative;
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.commands-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Responsive compact toolbar */
+.header-dropdown.is-compact .dropdown-toolbar,
+@container (max-width: 440px) {
+  .dropdown-toolbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .search-input-wrapper {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+  .commands-filter-bar {
+    width: 100%;
+    display: flex;
+    justify-content: stretch;
+  }
+  .commands-filter-bar .filter-btn {
+    flex: 1;
+    text-align: center;
+    padding: 3px 4px;
+    font-size: 11px;
+  }
 }
 
 .dropdown-body {
@@ -277,31 +316,45 @@ body {
   position: absolute;
   left: 2px;
   bottom: 2px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   cursor: nesw-resize;
-  opacity: 0.45;
+  opacity: 0.55;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
-  z-index: 100;
+  z-index: 105;
+  touch-action: none;
   transition: opacity 0.15s;
 }
 
 .dropdown-resize-handle-left:hover,
 .dropdown-resize-handle-left.active {
   opacity: 1;
+  color: var(--vscode-focusBorder, #007fd4);
+}
+
+.dropdown-resize-handle-edge-left {
+  position: absolute;
+  left: 0;
+  top: 36px;
+  bottom: 16px;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 104;
+  touch-action: none;
 }
 
 .dropdown-resize-handle-bottom {
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: 16px;
+  right: 6px;
   bottom: 0;
   height: 6px;
   cursor: ns-resize;
-  z-index: 99;
+  z-index: 104;
+  touch-action: none;
 }
 
 /* ==========================================================================
@@ -560,7 +613,7 @@ body {
 .ports-list-container {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 4px;
 }
 
@@ -579,6 +632,19 @@ body {
   border-bottom: 1px solid var(--dcc-border-color);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.ports-table th.col-port, .ports-table td.col-port {
+  width: 56px;
+  min-width: 50px;
+  white-space: nowrap;
+}
+
+.ports-table th.col-actions, .ports-table td.col-actions {
+  text-align: right;
+  width: 108px;
+  min-width: 108px;
+  white-space: nowrap;
 }
 
 .port-row {
@@ -611,12 +677,23 @@ body {
   color: var(--vscode-terminal-ansiCyan, #4ec9b0);
 }
 
+.process-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .process-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 11px;
   opacity: 0.9;
+  word-break: break-word;
+}
+
+.compact-port-meta {
+  display: none;
 }
 
 .framework-badge {
@@ -639,8 +716,36 @@ body {
 .row-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   justify-content: flex-end;
+}
+
+/* Compact Ports Table: hide PID & Runtime columns, nest into process cell */
+.header-dropdown.is-compact .col-pid,
+.header-dropdown.is-compact .col-framework,
+@container (max-width: 440px) {
+  .col-pid, .col-framework {
+    display: none !important;
+  }
+  .compact-port-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    margin-top: 2px;
+    opacity: 0.85;
+  }
+  .ports-table td {
+    padding: 5px 6px;
+  }
+  .row-actions {
+    gap: 1px;
+  }
+  .row-actions .icon-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
 }
 
 /* Detail Modal / Drawer */
@@ -824,21 +929,45 @@ body {
   position: absolute;
   right: 2px;
   bottom: 2px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   cursor: nwse-resize;
-  opacity: 0.45;
+  opacity: 0.55;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
-  z-index: 100;
+  z-index: 105;
+  touch-action: none;
   transition: opacity 0.15s;
 }
 
 .modal-resize-handle:hover,
 .modal-resize-handle.active {
   opacity: 1;
+  color: var(--vscode-focusBorder, #007fd4);
+}
+
+.modal-resize-handle-edge-right {
+  position: absolute;
+  right: 0;
+  top: 30px;
+  bottom: 16px;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 104;
+  touch-action: none;
+}
+
+.modal-resize-handle-edge-bottom {
+  position: absolute;
+  left: 10px;
+  right: 16px;
+  bottom: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 104;
+  touch-action: none;
 }
 
 /* ==========================================================================
@@ -896,12 +1025,13 @@ body {
 .command-card {
   background-color: var(--dcc-card-bg);
   border: 1px solid var(--dcc-card-border);
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: border-color 0.1s;
+  min-width: 0;
+  transition: border-color 0.15s;
 }
 
 .command-card:hover {
@@ -910,19 +1040,26 @@ body {
 
 .command-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .command-title-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .command-name {
   font-size: 12px;
   font-weight: 600;
+  word-break: break-word;
+  color: var(--vscode-foreground, #ffffff);
 }
 
 .command-scope-badge {
@@ -933,6 +1070,7 @@ body {
   font-weight: 600;
   opacity: 0.7;
   background-color: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .command-scope-badge.workspace {
@@ -945,15 +1083,43 @@ body {
   border: 1px solid rgba(220, 220, 170, 0.3);
 }
 
+.command-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.command-card-actions .btn-run-cmd {
+  padding: 2px 8px;
+  height: 22px;
+  font-size: 11px;
+}
+
+.command-card-actions .icon-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
 .command-snippet {
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 11px;
-  background-color: rgba(0, 0, 0, 0.25);
-  padding: 4px 6px;
-  border-radius: 2px;
+  background-color: rgba(0, 0, 0, 0.28);
+  padding: 5px 8px;
+  border-radius: 3px;
   border-left: 2px solid var(--dcc-button-bg);
   word-break: break-all;
   user-select: text;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+  position: relative;
+}
+
+.command-snippet:hover {
+  background-color: rgba(0, 0, 0, 0.45);
+  border-left-color: var(--vscode-focusBorder, #007fd4);
 }
 
 .command-description {
@@ -961,11 +1127,22 @@ body {
   opacity: 0.7;
 }
 
-
-.command-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* Compact Command Card Rules */
+.header-dropdown.is-compact .command-header,
+@container (max-width: 440px) {
+  .command-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .command-title-row {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .command-card-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* ==========================================================================
@@ -1100,8 +1277,7 @@ body {
   }
   .header-dropdown {
     right: 4px;
-    left: 4px;
-    width: auto;
-    max-width: none;
+    max-width: calc(100vw - 8px);
+    min-width: 220px;
   }
 }

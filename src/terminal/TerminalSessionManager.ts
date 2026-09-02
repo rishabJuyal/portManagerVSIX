@@ -139,6 +139,14 @@ export class TerminalSessionManager implements ITerminalService {
     }
   }
 
+  public clearSession(id: string): void {
+    const session = this.sessions.get(id);
+    if (session) {
+      this.logger.info(`Clearing terminal session scrollback [${id}]`);
+      session.clearScrollback();
+    }
+  }
+
   public killSession(id: string): void {
     this.closeSession(id);
   }

@@ -196,4 +196,21 @@ describe('Terminal Subsystem Unit Tests', () => {
     assert.strictEqual(remaining[0].name, 'backend-server');
     assert.strictEqual(remaining[1].name, 'Terminal 1');
   });
+
+  it('clears session scrollback and preserves clear state', () => {
+    const term = manager.createSession({ name: 'clear-test' });
+    term.write('echo hello\r\n');
+    manager.clearSession(term.id);
+    const scrollback = term.getScrollback();
+    // After clear, scrollback should not contain previous output
+    assert.ok(!scrollback.includes('echo hello'));
+  });
+
+  it('handles paste without auto-executing when trailing newline is sanitized', () => {
+    const term = manager.createSession({ name: 'paste-test' });
+    // Webview strips trailing newlines on paste so it places on prompt without running
+    const pasted = 'npm run dev\r\n'.replace(/[\r\n]+$/, '');
+    term.write(pasted);
+    assert.strictEqual(term.getCurrentLine(), 'npm run dev');
+  });
 });

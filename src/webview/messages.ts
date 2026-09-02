@@ -33,6 +33,7 @@ export type WebviewToExtensionMessage =
   | { type: 'terminal:input'; id: string; data: string }
   | { type: 'terminal:resize'; id: string; cols: number; rows: number }
   | { type: 'terminal:requestScrollback'; id: string }
+  | { type: 'terminal:clear'; id: string }
   | { type: 'ports:refresh' }
   | { type: 'ports:toggleAutoRefresh'; enabled: boolean }
   | { type: 'ports:openBrowser'; port: number }
