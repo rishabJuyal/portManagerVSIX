@@ -153,4 +153,47 @@ describe('Terminal Subsystem Unit Tests', () => {
     manager.killSession(id);
     assert.strictEqual(manager.getSession(id), undefined);
   });
+
+  it('refreshes terminal count and renumbers default terminals on deletion', () => {
+    const term1 = manager.createSession(); // Terminal 1
+    const term2 = manager.createSession(); // Terminal 2
+    const term3 = manager.createSession(); // Terminal 3
+
+    assert.strictEqual(term1.name, 'Terminal 1');
+    assert.strictEqual(term2.name, 'Terminal 2');
+    assert.strictEqual(term3.name, 'Terminal 3');
+    assert.strictEqual(manager.getSessions().length, 3);
+
+    // Delete Terminal 2
+    manager.closeSession(term2.id);
+
+    // Remaining sessions should be renumbered sequentially and total count is 2
+    const remaining = manager.getSessions();
+    assert.strictEqual(remaining.length, 2);
+    assert.strictEqual(remaining[0].name, 'Terminal 1');
+    assert.strictEqual(remaining[1].name, 'Terminal 2');
+
+    // Creating a new terminal gets the next sequential number (Terminal 3)
+    const termNew = manager.createSession();
+    assert.strictEqual(termNew.name, 'Terminal 3');
+    assert.strictEqual(manager.getSessions().length, 3);
+  });
+
+  it('preserves custom renamed terminals while renumbering default terminals', () => {
+    const term1 = manager.createSession(); // Terminal 1
+    const term2 = manager.createSession({ name: 'backend-server' }); // Custom name
+    const term3 = manager.createSession(); // Terminal 2 (next available default)
+
+    assert.strictEqual(term1.name, 'Terminal 1');
+    assert.strictEqual(term2.name, 'backend-server');
+    assert.strictEqual(term3.name, 'Terminal 2');
+
+    // Delete Terminal 1
+    manager.closeSession(term1.id);
+
+    const remaining = manager.getSessions();
+    assert.strictEqual(remaining.length, 2);
+    assert.strictEqual(remaining[0].name, 'backend-server');
+    assert.strictEqual(remaining[1].name, 'Terminal 1');
+  });
 });

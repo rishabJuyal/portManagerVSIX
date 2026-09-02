@@ -34,19 +34,23 @@ export class ShellDetector {
     const shells: AvailableShell[] = [];
     const sysRoot = process.env.SystemRoot || 'C:\\Windows';
 
-    // 1. PowerShell Core (pwsh.exe)
-    const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
-    const pwshPath = path.join(programFiles, 'PowerShell', '7', 'pwsh.exe');
-    if (fs.existsSync(pwshPath)) {
-      shells.push({ name: 'PowerShell 7 (pwsh)', path: pwshPath, isDefault: true });
-    }
-
-    // 2. Windows PowerShell
+    // 1. Windows PowerShell (Default)
     const winPsPath = path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     if (fs.existsSync(winPsPath)) {
       shells.push({
         name: 'Windows PowerShell',
         path: winPsPath,
+        isDefault: true
+      });
+    }
+
+    // 2. PowerShell Core (pwsh.exe)
+    const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+    const pwshPath = path.join(programFiles, 'PowerShell', '7', 'pwsh.exe');
+    if (fs.existsSync(pwshPath)) {
+      shells.push({
+        name: 'PowerShell 7 (pwsh)',
+        path: pwshPath,
         isDefault: shells.length === 0
       });
     }
@@ -81,7 +85,7 @@ export class ShellDetector {
     }
 
     if (shells.length === 0) {
-      shells.push({ name: 'PowerShell', path: 'powershell.exe', isDefault: true });
+      shells.push({ name: 'Windows PowerShell', path: 'powershell.exe', isDefault: true });
     }
 
     return shells;

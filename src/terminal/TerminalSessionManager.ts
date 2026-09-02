@@ -20,9 +20,28 @@ export class TerminalSessionManager implements ITerminalService {
 
   constructor(private workspaceService: WorkspaceService) {}
 
+  public getNextDefaultTerminalName(): string {
+    const existingNames = new Set(Array.from(this.sessions.values()).map(s => s.name));
+    let num = 1;
+    while (existingNames.has(`Terminal ${num}`)) {
+      num++;
+    }
+    return `Terminal ${num}`;
+  }
+
+  private renumberDefaultTerminals(): void {
+    let index = 1;
+    for (const session of this.sessions.values()) {
+      if (/^Terminal\s+\d+$/.test(session.name)) {
+        session.name = `Terminal ${index}`;
+        index++;
+      }
+    }
+  }
+
   public createSession(options?: CreateTerminalOptions): TerminalSession {
-    const id = `term-${Date.now()}-${this.counter}`;
-    const name = options?.name || `Terminal ${this.counter++}`;
+    const id = `term-${Date.now()}-${this.counter++}`;
+    const name = options?.name || this.getNextDefaultTerminalName();
     const cwd = options?.cwd || this.workspaceService.getDefaultWorkingDirectory();
     const shell = options?.shell || ShellDetector.getDefaultShell();
 
@@ -97,6 +116,8 @@ export class TerminalSessionManager implements ITerminalService {
         const remaining = Array.from(this.sessions.keys());
         this.activeSessionId = remaining.length > 0 ? remaining[remaining.length - 1] : null;
       }
+
+      this.renumberDefaultTerminals();
       this.fireSessionChange();
     }
   }
@@ -119,18 +140,7 @@ export class TerminalSessionManager implements ITerminalService {
   }
 
   public killSession(id: string): void {
-    const session = this.sessions.get(id);
-    if (session) {
-      this.logger.info(`Killing and removing terminal session [${id}]`);
-      session.dispose();
-      this.sessions.delete(id);
-
-      if (this.activeSessionId === id) {
-        const remaining = Array.from(this.sessions.keys());
-        this.activeSessionId = remaining.length > 0 ? remaining[remaining.length - 1] : null;
-      }
-      this.fireSessionChange();
-    }
+    this.closeSession(id);
   }
 
   public sendInput(id: string, data: string): void {

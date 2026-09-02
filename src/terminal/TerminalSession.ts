@@ -507,6 +507,16 @@ export class TerminalSession extends EventEmitter {
       } catch (err) {
         this.logger.warn(`Error killing terminal process: ${err}`);
       }
+
+      try {
+        this.process.stdin?.destroy();
+        this.process.stdout?.destroy();
+        this.process.stderr?.destroy();
+        this.process.kill();
+      } catch {
+        // ignore
+      }
+
       this.isAlive = false;
     }
   }
@@ -525,6 +535,7 @@ export class TerminalSession extends EventEmitter {
 
   public dispose(): void {
     this.kill();
+    this.process = null;
     this.removeAllListeners();
   }
 }

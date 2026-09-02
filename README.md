@@ -119,4 +119,12 @@ npm run build
 
 # Run unit tests
 npm test
+
+# Package into installable .vsix file (Always run after build & test)
+npm run package
+# (or: npx -y @vscode/vsce package --no-git-tag-version --allow-missing-repository)
+
+# Or do everything in one command (Build + Test + Package .vsix):
+npm run build:all
 ```
+

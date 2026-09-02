@@ -264,9 +264,13 @@ npm run compile
 # Build both Extension and Webview bundles
 npm run build
 
-# Run all 28 automated Mocha unit tests
+# Run all 36 automated Mocha unit tests
 npm test
 
-# Package into production VSIX
-npx @vscode/vsce package --no-git-tag-version
+# Package into installable production VSIX (Run after build & test)
+npm run package
+# (or: npx -y @vscode/vsce package --no-git-tag-version --allow-missing-repository)
+
+# Or run full pipeline in one command (Build + Test + Package .vsix):
+npm run build:all
 ```

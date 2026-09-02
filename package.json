@@ -206,7 +206,7 @@
         "devControlCenter.defaultShell": {
           "type": "string",
           "default": "",
-          "description": "Path or name of default shell executable (e.g. powershell.exe, pwsh, cmd.exe, bash, zsh). Leave blank for auto-detection."
+          "description": "Path or name of default shell executable (e.g. powershell.exe, pwsh, cmd.exe, bash, zsh). Defaults to Windows PowerShell on Windows."
         },
         "devControlCenter.defaultRunLocation": {
           "type": "string",
@@ -229,6 +229,8 @@
     "watch:webview": "node esbuild.webview.js --watch",
     "compile": "tsc -p ./ --noEmit",
     "test": "node esbuild.test.js && node ./test/runUnitTests.js",
+    "package": "npx -y @vscode/vsce package --no-git-tag-version --allow-missing-repository",
+    "build:all": "npm run build && npm test && npm run package",
     "lint": "echo Linting passed"
   },
   "devDependencies": {

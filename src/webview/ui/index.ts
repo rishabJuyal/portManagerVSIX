@@ -222,13 +222,8 @@ class DevControlCenterApp {
     }
 
     this.renderTerminalTabs();
-
-    if (activeId && this.terminalInstances.has(activeId)) {
-      this.activateTerminalSession(activeId);
-    } else if (activeId) {
-      // Instance will be created on render
-      this.renderTerminalArea();
-    }
+    this.renderTerminalArea();
+    this.updateNavBadges();
   }
 
   private handleTerminalData(id: string, data: string): void {
@@ -586,7 +581,6 @@ class DevControlCenterApp {
   // TERMINAL LOGIC
   // =========================================================================
   private renderTerminalArea(): void {
-    this.renderTerminalTabs();
     const container = document.getElementById('terminal-container');
     if (!container) return;
 
@@ -605,6 +599,12 @@ class DevControlCenterApp {
         this.postToExtension({ type: 'terminal:create' });
       });
       return;
+    }
+
+    // Clean up empty state if it was rendered before
+    const emptyStateEl = container.querySelector('.empty-state');
+    if (emptyStateEl) {
+      emptyStateEl.remove();
     }
 
     // Ensure terminal element exists for each session
@@ -712,17 +712,28 @@ class DevControlCenterApp {
       tab.innerHTML = `
         <i class="codicon codicon-terminal"></i>
         <span class="terminal-tab-title" title="Double click to rename">${this.escapeHtml(session.name)}</span>
-        <i class="codicon codicon-close terminal-tab-close" title="Close"></i>
+        <button class="terminal-tab-close" title="Close Terminal (Kill)" aria-label="Close Terminal">
+          <i class="codicon codicon-close"></i>
+        </button>
       `;
 
-      tab.addEventListener('click', e => {
-        if ((e.target as HTMLElement).classList.contains('terminal-tab-close')) {
-          e.stopPropagation();
-          this.postToExtension({ type: 'terminal:close', id: session.id });
-        } else {
-          this.postToExtension({ type: 'terminal:select', id: session.id });
-          this.activateTerminalSession(session.id);
+      // Click on tab to select
+      tab.addEventListener('click', (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('.terminal-tab-close')) {
+          // Handled by close button listener
+          return;
         }
+        this.postToExtension({ type: 'terminal:select', id: session.id });
+        this.activateTerminalSession(session.id);
+      });
+
+      // Click on close button to delete/close terminal
+      const closeBtn = tab.querySelector('.terminal-tab-close');
+      closeBtn?.addEventListener('click', (e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.postToExtension({ type: 'terminal:close', id: session.id });
       });
 
       // Double-click to rename

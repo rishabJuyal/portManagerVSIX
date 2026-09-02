@@ -366,9 +366,21 @@ body {
 
 .terminal-tab-close {
   opacity: 0.6;
-  padding: 1px;
+  padding: 0;
   border-radius: 2px;
   font-size: 11px;
+  height: 16px;
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--dcc-fg);
+  cursor: pointer;
+  margin-left: 2px;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
 }
 
 .terminal-tab-close:hover {
