@@ -195,3 +195,63 @@ export function registerCommands(
     })
   );
 }
+
+export async function showRunInTerminalQuickPick(
+  commandService: SavedCommandService,
+  workspaceService: WorkspaceService
+): Promise<vscode.QuickPick<any>> {
+  const qp = vscode.window.createQuickPick<any>();
+  qp.placeholder = 'Select a saved command to run in VS Code terminal';
+
+  const commands = commandService.getAllCommands();
+  qp.items = commands.map(c => ({
+    label: `$(play) ${c.name}`,
+    description: c.command,
+    detail: `[${c.scope.toUpperCase()}] ${c.description || ''}`,
+    commandObj: c
+  }));
+
+  qp.onDidAccept(() => {
+    const selected = qp.selectedItems[0];
+    if (selected && selected.commandObj) {
+      let term = vscode.window.activeTerminal;
+      if (!term) {
+        term = vscode.window.createTerminal({
+          name: selected.commandObj.name,
+          cwd: selected.commandObj.workingDirectory || workspaceService.getDefaultWorkingDirectory()
+        });
+      }
+      term.show();
+      term.sendText(selected.commandObj.command);
+    }
+    qp.hide();
+  });
+
+  qp.show();
+  return qp;
+}
+
+export async function showPortsQuickPick(
+  portService: PortService,
+  configService: ConfigService,
+  statusBarService: StatusBarService
+): Promise<vscode.QuickPick<any>> {
+  const qp = vscode.window.createQuickPick<any>();
+  qp.placeholder = 'Active Ports';
+  qp.busy = true;
+  qp.show();
+
+  try {
+    const ports = await portService.getListeningPorts();
+    qp.items = ports.map(p => ({
+      label: `$(plug) Port ${p.port}`,
+      description: `${p.processName || 'Unknown'} (PID: ${p.pid})`,
+      detail: `Protocol: ${p.protocol.toUpperCase()}`
+    }));
+  } finally {
+    qp.busy = false;
+  }
+
+  return qp;
+}
+

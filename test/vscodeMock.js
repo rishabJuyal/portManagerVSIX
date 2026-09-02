@@ -43,6 +43,25 @@ const mockVscode = {
     showWarningMessage: async () => undefined,
     showErrorMessage: async () => undefined,
     showQuickPick: async () => undefined,
+    createQuickPick: () => {
+      const onDidAcceptEmitter = new EventEmitter();
+      const onDidChangeValueEmitter = new EventEmitter();
+      const onDidHideEmitter = new EventEmitter();
+      return {
+        items: [],
+        selectedItems: [],
+        placeholder: '',
+        busy: false,
+        value: '',
+        onDidAccept: onDidAcceptEmitter.event,
+        onDidChangeValue: onDidChangeValueEmitter.event,
+        onDidHide: onDidHideEmitter.event,
+        _fireAccept: () => onDidAcceptEmitter.fire(),
+        show: () => {},
+        hide: () => onDidHideEmitter.fire(),
+        dispose: () => {}
+      };
+    },
     showInputBox: async () => undefined,
     setStatusBarMessage: () => ({ dispose: () => {} })
   },

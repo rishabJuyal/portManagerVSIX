@@ -244,8 +244,8 @@ class DevControlCenterApp {
 
   private handleTerminalScrollback(id: string, data: string): void {
     const instance = this.terminalInstances.get(id);
-    if (instance) {
-      instance.xterm.clear();
+    if (instance && data && data.length > 0) {
+      instance.xterm.reset();
       instance.xterm.write(data);
     }
   }
@@ -269,11 +269,6 @@ class DevControlCenterApp {
           <button class="icon-btn header-add-btn" id="btn-term-new" title="New Terminal (Alt+Shift+T)">
             <i class="codicon codicon-add"></i>
           </button>
-        </div>
-        <div class="nav-actions">
-          <span class="terminal-cwd-info" id="terminal-cwd-badge" title="Working Directory">
-            <i class="codicon codicon-folder"></i> <span id="terminal-cwd-text">~</span>
-          </span>
         </div>
       </nav>
 
@@ -687,14 +682,6 @@ class DevControlCenterApp {
       } else {
         inst.element.classList.remove('active');
       }
-    }
-
-    // Update CWD text badge
-    const activeSession = this.sessions.find(s => s.id === id);
-    const cwdBadge = document.getElementById('terminal-cwd-text');
-    if (cwdBadge && activeSession) {
-      cwdBadge.textContent = activeSession.cwd;
-      (cwdBadge.parentElement as HTMLElement).title = `Shell: ${activeSession.shell}\nCWD: ${activeSession.cwd}`;
     }
 
     this.fitActiveTerminal();

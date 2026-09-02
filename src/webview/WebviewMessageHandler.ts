@@ -320,14 +320,6 @@ export class WebviewMessageHandler {
       type: 'state:init',
       payload
     });
-
-    if (activeSession) {
-      await this.postMessage({
-        type: 'terminal:scrollback',
-        id: activeSession.id,
-        data: activeSession.getScrollback()
-      });
-    }
   }
 
   public async refreshPorts(force = false): Promise<void> {

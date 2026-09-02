@@ -42,7 +42,8 @@ export class TerminalSessionManager implements ITerminalService {
     });
 
     session.on('exit', () => {
-      this.fireSessionChange();
+      // Remove dead session when shell process exits
+      this.closeSession(id);
     });
 
     this.sessions.set(id, session);
@@ -120,8 +121,14 @@ export class TerminalSessionManager implements ITerminalService {
   public killSession(id: string): void {
     const session = this.sessions.get(id);
     if (session) {
-      this.logger.info(`Killing terminal session [${id}]`);
-      session.kill();
+      this.logger.info(`Killing and removing terminal session [${id}]`);
+      session.dispose();
+      this.sessions.delete(id);
+
+      if (this.activeSessionId === id) {
+        const remaining = Array.from(this.sessions.keys());
+        this.activeSessionId = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+      }
       this.fireSessionChange();
     }
   }
@@ -136,7 +143,7 @@ export class TerminalSessionManager implements ITerminalService {
   public sendText(id: string, text: string, addNewline = true): void {
     const session = this.sessions.get(id);
     if (session) {
-      session.write(text + (addNewline ? '\r\n' : ''));
+      session.sendText(text, addNewline);
     }
   }
 
