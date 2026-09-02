@@ -67,9 +67,11 @@ describe('Terminal Subsystem Unit Tests', () => {
   it('records command history and navigates with Up/Down arrows', () => {
     const session = manager.createSession({ name: 'History Term' });
 
-    // Simulate typing and executing commands
-    session.write('git status\r');
-    session.write('npm test\r');
+    // Simulate typing and executing commands (typing characters followed by Enter)
+    session.write('git status');
+    session.write('\r');
+    session.write('npm test');
+    session.write('\r');
 
     const history = session.getHistory();
     assert.strictEqual(history[0], 'npm test');
@@ -120,7 +122,8 @@ describe('Terminal Subsystem Unit Tests', () => {
 
   it('shares command history across newly created terminal sessions', () => {
     const term1 = manager.createSession({ name: 'Term 1' });
-    term1.write('docker ps\r');
+    term1.write('docker ps');
+    term1.write('\r');
 
     const term2 = manager.createSession({ name: 'Term 2' });
     const term2History = term2.getHistory();
@@ -199,18 +202,19 @@ describe('Terminal Subsystem Unit Tests', () => {
 
   it('clears session scrollback and preserves clear state', () => {
     const term = manager.createSession({ name: 'clear-test' });
-    term.write('echo hello\r\n');
+    term.write('echo hello');
+    term.write('\r');
     manager.clearSession(term.id);
     const scrollback = term.getScrollback();
     // After clear, scrollback should not contain previous output
     assert.ok(!scrollback.includes('echo hello'));
   });
 
-  it('handles paste without auto-executing when trailing newline is sanitized', () => {
+  it('does not auto-execute command on paste even with trailing newline', () => {
     const term = manager.createSession({ name: 'paste-test' });
-    // Webview strips trailing newlines on paste so it places on prompt without running
-    const pasted = 'npm run dev\r\n'.replace(/[\r\n]+$/, '');
-    term.write(pasted);
+    // Paste with trailing newline
+    term.write('npm run dev\r\n');
+    // Command remains on the prompt waiting for Enter, not executed
     assert.strictEqual(term.getCurrentLine(), 'npm run dev');
   });
 });

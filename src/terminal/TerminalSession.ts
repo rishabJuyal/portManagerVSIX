@@ -39,6 +39,8 @@ export class TerminalSession extends EventEmitter {
   private savedCurrentLine = '';
   private lastPrompt = '';
   private isAtPrompt = false;
+  private cols = 80;
+  private rows = 24;
 
   constructor(options: TerminalSessionOptions) {
     super();
@@ -162,6 +164,36 @@ export class TerminalSession extends EventEmitter {
   }
 
   /**
+   * Replaces the current command line on the prompt without re-printing the prompt or creating new lines.
+   * Accurately handles wrapped commands when the command string exceeds the terminal width.
+   */
+  private replaceCurrentLine(newCmd: string): void {
+    const promptLen = (this.lastPrompt || '').length;
+    const cols = this.cols > 0 ? this.cols : 80;
+
+    const currentOffset = promptLen + this.cursorPos;
+    const currentRow = Math.floor(currentOffset / cols);
+
+    let clearSeq = '';
+    if (currentRow > 0) {
+      // Cursor is on a wrapped line: move up to prompt row, align after prompt, and clear down
+      const promptCol = promptLen % cols;
+      clearSeq = `\x1b[${currentRow}A\r` + (promptCol > 0 ? `\x1b[${promptCol}C` : '') + '\x1b[0J';
+    } else {
+      // Cursor is on the same line as prompt: move back by cursorPos and clear line to the right
+      if (this.cursorPos > 0) {
+        clearSeq = `\x1b[${this.cursorPos}D\x1b[K`;
+      } else {
+        clearSeq = '\x1b[K';
+      }
+    }
+
+    this.currentLine = newCmd;
+    this.cursorPos = newCmd.length;
+    this.pushData(clearSeq + newCmd);
+  }
+
+  /**
    * Main input receiver from xterm / webview
    */
   public write(data: string): void {
@@ -208,9 +240,7 @@ export class TerminalSession extends EventEmitter {
       if (this.historyIndex < history.length - 1) {
         this.historyIndex++;
         const targetCmd = history[this.historyIndex];
-        this.pushData('\r' + (this.lastPrompt || '') + targetCmd + '\x1b[K');
-        this.currentLine = targetCmd;
-        this.cursorPos = targetCmd.length;
+        this.replaceCurrentLine(targetCmd);
       }
       return;
     }
@@ -221,15 +251,11 @@ export class TerminalSession extends EventEmitter {
       if (this.historyIndex > 0) {
         this.historyIndex--;
         const targetCmd = history[this.historyIndex];
-        this.pushData('\r' + (this.lastPrompt || '') + targetCmd + '\x1b[K');
-        this.currentLine = targetCmd;
-        this.cursorPos = targetCmd.length;
+        this.replaceCurrentLine(targetCmd);
       } else if (this.historyIndex === 0) {
         this.historyIndex = -1;
         const targetCmd = this.savedCurrentLine;
-        this.pushData('\r' + (this.lastPrompt || '') + targetCmd + '\x1b[K');
-        this.currentLine = targetCmd;
-        this.cursorPos = targetCmd.length;
+        this.replaceCurrentLine(targetCmd);
       }
       return;
     }
@@ -309,9 +335,7 @@ export class TerminalSession extends EventEmitter {
 
     // 11. Handle Ctrl+U (\x15) - Clear line
     if (data === '\x15') {
-      this.pushData('\r' + (this.lastPrompt || '') + '\x1b[K');
-      this.currentLine = '';
-      this.cursorPos = 0;
+      this.replaceCurrentLine('');
       return;
     }
 
@@ -321,9 +345,8 @@ export class TerminalSession extends EventEmitter {
         const before = this.currentLine.slice(0, this.cursorPos);
         const after = this.currentLine.slice(this.cursorPos);
         const trimmed = before.replace(/\s*\S*$/, '');
-        this.currentLine = trimmed + after;
+        this.replaceCurrentLine(trimmed + after);
         this.cursorPos = trimmed.length;
-        this.pushData('\r' + (this.lastPrompt || '') + this.currentLine + '\x1b[K');
         if (this.cursorPos < this.currentLine.length) {
           this.pushData(`\x1b[${this.currentLine.length - this.cursorPos}D`);
         }
@@ -369,51 +392,60 @@ export class TerminalSession extends EventEmitter {
       return;
     }
 
-    // 15. Handle standard character typing & input with newlines
+    // 15. Handle standard character typing & pasting
     if (this.isAtPrompt || this.process) {
-      if (data.includes('\n') || data.includes('\r')) {
-        const lines = data.split(/\r\n|\r|\n/);
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          if (i < lines.length - 1) {
-            this.currentLine += line;
-            this.pushData(line + '\r\n');
-            if (this.currentLine.trim().length > 0) {
-              this.historyManager.append(this.currentLine.trim());
-            }
-            const trimmedLower = this.currentLine.trim().toLowerCase();
-            if (trimmedLower === 'cls' || trimmedLower === 'clear') {
-              this.clearScrollback();
-            }
-            if (this.process.stdin) {
-              this.process.stdin.write(this.currentLine + '\r\n');
-            }
-            this.currentLine = '';
-            this.cursorPos = 0;
-          } else if (line.length > 0) {
-            this.currentLine += line;
-            this.cursorPos += line.length;
-            this.pushData(line);
-          }
-        }
-        return;
-      }
-
       if (data === '\x16') {
         // Raw Ctrl+V character (SYN) - ignore to avoid prompt corruption
         return;
       }
 
-      if (this.cursorPos === this.currentLine.length) {
-        this.currentLine += data;
-        this.cursorPos += data.length;
-        this.pushData(data);
-      } else {
-        const tail = this.currentLine.slice(this.cursorPos);
-        this.currentLine = this.currentLine.slice(0, this.cursorPos) + data + tail;
-        this.cursorPos += data.length;
-        this.pushData(data + tail + (tail.length > 0 ? `\x1b[${tail.length}D` : ''));
+      // Check if data is a single command/string (e.g. pasted command with optional trailing newline)
+      const cleanData = data.replace(/[\r\n]+$/, '');
+      if (!cleanData.includes('\n') && !cleanData.includes('\r')) {
+        // Single command / string input: place on currentLine without auto-running
+        if (cleanData.length > 0) {
+          if (this.cursorPos === this.currentLine.length) {
+            this.currentLine += cleanData;
+            this.cursorPos += cleanData.length;
+            this.pushData(cleanData);
+          } else {
+            const tail = this.currentLine.slice(this.cursorPos);
+            this.currentLine = this.currentLine.slice(0, this.cursorPos) + cleanData + tail;
+            this.cursorPos += cleanData.length;
+            this.pushData(cleanData + tail + (tail.length > 0 ? `\x1b[${tail.length}D` : ''));
+          }
+        }
+        return;
       }
+
+      // If data has internal newlines (multiline paste):
+      const lines = cleanData.split(/\r\n|\r|\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (i < lines.length - 1) {
+          // Preceding lines in a multiline block are executed
+          this.currentLine += line;
+          this.pushData(line + '\r\n');
+          if (this.currentLine.trim().length > 0) {
+            this.historyManager.append(this.currentLine.trim());
+          }
+          const trimmedLower = this.currentLine.trim().toLowerCase();
+          if (trimmedLower === 'cls' || trimmedLower === 'clear') {
+            this.clearScrollback();
+          }
+          if (this.process.stdin) {
+            this.process.stdin.write(this.currentLine + '\r\n');
+          }
+          this.currentLine = '';
+          this.cursorPos = 0;
+        } else if (line.length > 0) {
+          // Final line is placed on prompt WITHOUT executing
+          this.currentLine += line;
+          this.cursorPos += line.length;
+          this.pushData(line);
+        }
+      }
+      return;
     }
   }
 
@@ -493,6 +525,9 @@ export class TerminalSession extends EventEmitter {
   }
 
   public resize(cols: number, rows: number): void {
+    if (cols > 0) this.cols = cols;
+    if (rows > 0) this.rows = rows;
+
     if (this.process && !isWindows() && this.process.pid) {
       try {
         process.kill(this.process.pid, 'SIGWINCH');

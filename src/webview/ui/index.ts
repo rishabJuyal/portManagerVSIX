@@ -684,6 +684,8 @@ class DevControlCenterApp {
         (e.type === 'keydown' && e.shiftKey && e.key === 'Insert');
 
       if (isPaste) {
+        e.preventDefault();
+        e.stopPropagation();
         navigator.clipboard.readText().then(text => {
           if (text) {
             const cleanText = text.replace(/[\r\n]+$/, '');
@@ -692,7 +694,7 @@ class DevControlCenterApp {
         }).catch(err => {
           console.warn('Clipboard read error in xterm:', err);
         });
-        return false; // prevent xterm from emitting \x16
+        return false; // prevent xterm from processing raw key
       }
 
       const isCopy = e.type === 'keydown' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c';
@@ -730,18 +732,25 @@ class DevControlCenterApp {
       }
     });
 
-    // 3. Browser paste event on terminal DOM element
+    // 3. Browser paste event on terminal DOM element (capture phase to intercept before xterm helper textarea)
     element.addEventListener('paste', (e: ClipboardEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       const text = e.clipboardData?.getData('text');
       if (text) {
         const cleanText = text.replace(/[\r\n]+$/, '');
         this.postToExtension({ type: 'terminal:input', id: session.id, data: cleanText });
       }
-    });
+    }, true);
 
     xterm.onData(data => {
-      this.postToExtension({ type: 'terminal:input', id: session.id, data });
+      // If multi-character paste arrives via xterm with trailing newline, strip it so it does not auto-run
+      if (data.length > 1 && !data.startsWith('\x1b')) {
+        data = data.replace(/[\r\n]+$/, '');
+      }
+      if (data.length > 0) {
+        this.postToExtension({ type: 'terminal:input', id: session.id, data });
+      }
     });
 
     xterm.onResize(({ cols, rows }) => {
@@ -755,7 +764,8 @@ class DevControlCenterApp {
       element
     });
 
-    // Request scrollback from extension host
+    // Send initial size & request scrollback from extension host
+    this.postToExtension({ type: 'terminal:resize', id: session.id, cols: xterm.cols, rows: xterm.rows });
     this.postToExtension({ type: 'terminal:requestScrollback', id: session.id });
   }
 
@@ -785,6 +795,12 @@ class DevControlCenterApp {
     if (inst) {
       try {
         inst.fitAddon.fit();
+        this.postToExtension({
+          type: 'terminal:resize',
+          id: this.activeSessionId,
+          cols: inst.xterm.cols,
+          rows: inst.xterm.rows
+        });
       } catch {
         // ignore layout race
       }
