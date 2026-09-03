@@ -122,9 +122,21 @@ export class TerminalSession extends EventEmitter {
   }
 
   private handleStdout(text: string): void {
+    // Suppress Win32 console window title pipe error from PowerShell
+    if (
+      text.includes('SetConsoleWindowTitle') ||
+      text.includes('setting the console window title') ||
+      (text.includes('0xE9') && text.includes('No process is on the other end of the pipe'))
+    ) {
+      return;
+    }
+
+    // Normalize any bare \n (not preceded by \r) to \r\n to prevent diagonal staircase drift
+    const normalized = text.replace(/(?<!\r)\n/g, '\r\n');
+
     // Detect shell prompt at the end of output stream
     const promptRegex = /(?:^|\r?\n)(PS\s+[^\r\n>]+>\s*|[A-Za-z]:\\[^\r\n>]*>\s*|[\w\-~./@\s:]+[$#>%\\]\s*)$/;
-    const match = text.match(promptRegex);
+    const match = normalized.match(promptRegex);
     if (match) {
       this.isAtPrompt = true;
       this.lastPrompt = match[1] || match[0];
@@ -133,7 +145,7 @@ export class TerminalSession extends EventEmitter {
       this.historyIndex = -1;
     }
 
-    this.pushData(text);
+    this.pushData(normalized);
   }
 
   private pushData(data: string): void {
@@ -165,27 +177,15 @@ export class TerminalSession extends EventEmitter {
 
   /**
    * Replaces the current command line on the prompt without re-printing the prompt or creating new lines.
-   * Accurately handles wrapped commands when the command string exceeds the terminal width.
+   * Stays strictly after the prompt so it never jumps rows or overwrites previous output history.
    */
   private replaceCurrentLine(newCmd: string): void {
-    const promptLen = (this.lastPrompt || '').length;
-    const cols = this.cols > 0 ? this.cols : 80;
-
-    const currentOffset = promptLen + this.cursorPos;
-    const currentRow = Math.floor(currentOffset / cols);
-
     let clearSeq = '';
-    if (currentRow > 0) {
-      // Cursor is on a wrapped line: move up to prompt row, align after prompt, and clear down
-      const promptCol = promptLen % cols;
-      clearSeq = `\x1b[${currentRow}A\r` + (promptCol > 0 ? `\x1b[${promptCol}C` : '') + '\x1b[0J';
+    if (this.cursorPos > 0) {
+      // Move backward by the characters typed after the prompt, and clear to end of line
+      clearSeq = `\x1b[${this.cursorPos}D\x1b[K`;
     } else {
-      // Cursor is on the same line as prompt: move back by cursorPos and clear line to the right
-      if (this.cursorPos > 0) {
-        clearSeq = `\x1b[${this.cursorPos}D\x1b[K`;
-      } else {
-        clearSeq = '\x1b[K';
-      }
+      clearSeq = '\x1b[K';
     }
 
     this.currentLine = newCmd;
@@ -500,9 +500,16 @@ export class TerminalSession extends EventEmitter {
     }
   }
 
-  public sendText(text: string, addNewline = true): void {
+  public sendText(text: string, addNewline = true, bannerTitle?: string): void {
     if (addNewline) {
-      this.pushData(text + '\r\n');
+      if (bannerTitle) {
+        const titlePart = `\x1b[1;38;2;120;220;255m⚡ ${bannerTitle}\x1b[0m`;
+        const cmdPart = `\x1b[38;2;120;220;140m$ ${text}\x1b[0m`;
+        const banner = `\r\n\x1b[38;2;0;122;204m╭─\x1b[0m ${titlePart} \x1b[38;2;70;80;90m────────────────────────────\x1b[0m\r\n\x1b[38;2;0;122;204m│\x1b[0m ${cmdPart}\r\n\x1b[38;2;0;122;204m╰──────────────────────────────────────────────────\x1b[0m\r\n`;
+        this.pushData(banner);
+      } else {
+        this.pushData(text + '\r\n');
+      }
       if (text.trim().length > 0) {
         this.historyManager.append(text.trim());
       }
@@ -549,8 +556,12 @@ export class TerminalSession extends EventEmitter {
     try {
       if (isWindows()) {
         const parentPid = this.process.pid;
-        const killCmd = `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${parentPid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`;
-        spawn(killCmd, { shell: true, windowsHide: true });
+        setTimeout(() => {
+          if (this.isAlive && this.process && this.process.pid === parentPid) {
+            const killCmd = `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${parentPid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`;
+            spawn(killCmd, { shell: true, windowsHide: true });
+          }
+        }, 400);
       }
     } catch {
       // ignore

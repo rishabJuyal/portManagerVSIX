@@ -217,4 +217,16 @@ describe('Terminal Subsystem Unit Tests', () => {
     // Command remains on the prompt waiting for Enter, not executed
     assert.strictEqual(term.getCurrentLine(), 'npm run dev');
   });
+
+  it('renders styled execution banner when bannerTitle is provided to sendText', () => {
+    const term = manager.createSession({ name: 'banner-test' });
+    let output = '';
+    term.on('data', d => { output += d; });
+
+    term.sendText('npm test', true, 'Run Tests');
+
+    assert.ok(output.includes('Run Tests'), 'Output should contain bannerTitle');
+    assert.ok(output.includes('npm test'), 'Output should contain the command string');
+    assert.ok(output.includes('╭─'), 'Output should include top border character of banner');
+  });
 });

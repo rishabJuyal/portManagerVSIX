@@ -158,10 +158,10 @@ export class TerminalSessionManager implements ITerminalService {
     }
   }
 
-  public sendText(id: string, text: string, addNewline = true): void {
+  public sendText(id: string, text: string, addNewline = true, bannerTitle?: string): void {
     const session = this.sessions.get(id);
     if (session) {
-      session.sendText(text, addNewline);
+      session.sendText(text, addNewline, bannerTitle);
     }
   }
 

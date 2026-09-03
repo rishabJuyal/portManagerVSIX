@@ -396,10 +396,10 @@ export class WebviewMessageHandler {
       tab: 'terminal'
     });
 
-    // Send command text + Enter
+    // Send command text + Enter with styled execution banner
     setTimeout(() => {
       if (targetSession) {
-        this.terminalManager.sendText(targetSession.id, cmd.command, true);
+        this.terminalManager.sendText(targetSession.id, cmd.command, true, cmd.name);
       }
     }, 150);
   }

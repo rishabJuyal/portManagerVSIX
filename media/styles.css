@@ -971,6 +971,163 @@ body {
 }
 
 /* ==========================================================================
+   TERMINAL QUICK COMMANDS RIBBON BAR
+   ========================================================================== */
+.terminal-quick-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--dcc-header-bg);
+  border-bottom: 1px solid var(--dcc-border-color);
+  height: 29px;
+  min-height: 29px;
+  padding: 0 6px;
+  gap: 6px;
+  font-size: 11px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 90;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.terminal-quick-bar.collapsed {
+  height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom: none !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.quick-bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--vscode-foreground, #ffffff);
+  font-weight: 600;
+  opacity: 0.85;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.quick-bar-label .codicon-zap {
+  color: #dcdcaa;
+  font-size: 12px;
+}
+
+.quick-bar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  scrollbar-width: none;
+  min-width: 0;
+  height: 100%;
+}
+.quick-bar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-cmd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 2px 9px 2px 7px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--dcc-fg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+  flex-shrink: 0;
+  user-select: none;
+  height: 21px;
+  box-sizing: border-box;
+}
+
+.quick-cmd-pill:hover {
+  background: rgba(14, 99, 156, 0.35);
+  border-color: var(--dcc-active-tab-border);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(14, 99, 156, 0.35);
+}
+
+.quick-cmd-pill:active {
+  transform: translateY(0);
+  background: var(--dcc-button-bg);
+}
+
+.quick-cmd-pill .codicon-play {
+  color: var(--dcc-success, #4ec9b0);
+  font-size: 10px;
+  transition: transform 0.12s ease;
+}
+
+.quick-cmd-pill:hover .codicon-play {
+  transform: scale(1.15);
+}
+
+.quick-cmd-pill-name {
+  font-weight: 500;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-cmd-pill-code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 2px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-cmd-pill.workspace {
+  border-left: 2.5px solid #4ec9b0;
+}
+
+.quick-cmd-pill.global {
+  border-left: 2.5px solid #dcdcaa;
+}
+
+.quick-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.quick-bar-add-btn {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 10px;
+  border-radius: 3px;
+  gap: 3px;
+  font-weight: 500;
+}
+
+.quick-bar-toggle-btn {
+  height: 20px;
+  width: 20px;
+  padding: 0;
+  font-size: 11px;
+}
+
+/* ==========================================================================
    SAVED COMMANDS VIEW
    ========================================================================== */
 .commands-view {
@@ -999,6 +1156,7 @@ body {
   padding: 2px 8px;
   border-radius: 2px;
   cursor: pointer;
+  transition: all 0.12s ease;
 }
 
 .filter-btn:hover {
@@ -1011,6 +1169,7 @@ body {
   background-color: var(--dcc-button-secondary-bg);
   border-color: var(--dcc-border-color);
   font-weight: 600;
+  color: #ffffff;
 }
 
 .commands-list-container {
@@ -1023,126 +1182,228 @@ body {
 }
 
 .command-card {
-  background-color: var(--dcc-card-bg);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%), var(--dcc-card-bg);
   border: 1px solid var(--dcc-card-border);
-  border-radius: 4px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 9px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
-  transition: border-color 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .command-card:hover {
-  border-color: var(--dcc-input-focus-border);
+  border-color: rgba(0, 122, 204, 0.55);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 122, 204, 0.4);
+  transform: translateY(-1px);
 }
 
 .command-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .command-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   flex: 1 1 auto;
   min-width: 0;
   flex-wrap: wrap;
 }
 
 .command-name {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   word-break: break-word;
   color: var(--vscode-foreground, #ffffff);
+  letter-spacing: 0.2px;
 }
 
 .command-scope-badge {
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 10px;
   text-transform: uppercase;
   font-weight: 600;
-  opacity: 0.7;
+  letter-spacing: 0.4px;
   background-color: rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .command-scope-badge.workspace {
   color: #4ec9b0;
-  border: 1px solid rgba(78, 201, 176, 0.3);
+  background: rgba(78, 201, 176, 0.12);
+  border: 1px solid rgba(78, 201, 176, 0.35);
 }
 
 .command-scope-badge.global {
   color: #dcdcaa;
-  border: 1px solid rgba(220, 220, 170, 0.3);
+  background: rgba(220, 220, 170, 0.12);
+  border: 1px solid rgba(220, 220, 170, 0.35);
+}
+
+.command-cwd-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0.75;
+  color: var(--dcc-fg);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-card-actions {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
 }
 
 .command-card-actions .btn-run-cmd {
-  padding: 2px 8px;
-  height: 22px;
+  padding: 2px 10px;
+  height: 23px;
   font-size: 11px;
+  font-weight: 600;
+  background: linear-gradient(180deg, #0e639c 0%, #094771 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: all 0.12s ease;
+}
+
+.command-card-actions .btn-run-cmd:hover {
+  background: linear-gradient(180deg, #1177bb 0%, #0e639c 100%);
+  box-shadow: 0 2px 8px rgba(14, 99, 156, 0.45);
+  transform: translateY(-1px);
 }
 
 .command-card-actions .icon-btn {
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
   font-size: 12px;
+  border-radius: 3px;
+  transition: all 0.12s ease;
+}
+
+.command-card-actions .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.command-snippet-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .command-snippet {
-  font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 11px;
-  background-color: rgba(0, 0, 0, 0.28);
-  padding: 5px 8px;
-  border-radius: 3px;
-  border-left: 2px solid var(--dcc-button-bg);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--vscode-editor-font-family, "Consolas", monospace);
+  font-size: 11.5px;
+  background-color: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid var(--dcc-button-bg);
+  padding: 6px 10px;
+  border-radius: 4px;
+  line-height: 1.45;
   word-break: break-all;
   user-select: text;
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
-  position: relative;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
 }
 
 .command-snippet:hover {
-  background-color: rgba(0, 0, 0, 0.45);
+  background-color: rgba(0, 0, 0, 0.48);
   border-left-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.command-snippet-code {
+  flex: 1;
+  user-select: text;
+}
+
+.command-snippet-copy {
+  opacity: 0.65;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--dcc-fg);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+
+.command-snippet-copy:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.command-snippet-copy.copied {
+  opacity: 1;
+  color: #4ec9b0;
+  background: rgba(78, 201, 176, 0.2);
 }
 
 .command-description {
   font-size: 11px;
-  opacity: 0.7;
+  opacity: 0.75;
+  line-height: 1.35;
 }
 
-/* Compact Command Card Rules */
-.header-dropdown.is-compact .command-header,
-@container (max-width: 440px) {
-  .command-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-  .command-title-row {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .command-card-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
+/* Shell Command Syntax Highlighting Tokens */
+.sh-token-cmd {
+  color: #4fc1ff;
+  font-weight: 600;
+}
+
+.sh-token-sub {
+  color: #dcdcaa;
+}
+
+.sh-token-flag {
+  color: #f48771;
+}
+
+.sh-token-str {
+  color: #89d185;
+}
+
+.sh-token-op {
+  color: #c586c0;
+  font-weight: 600;
+}
+
+.sh-token-var {
+  color: #9cdcfe;
+}
+
+.sh-token-arg {
+  color: #cccccc;
 }
 
 /* ==========================================================================

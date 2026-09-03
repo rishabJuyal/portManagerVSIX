@@ -20,7 +20,7 @@ export interface ITerminalService {
   restartSession(id: string): void;
   killSession(id: string): void;
   sendInput(id: string, data: string): void;
-  sendText(id: string, text: string, addNewline?: boolean): void;
+  sendText(id: string, text: string, addNewline?: boolean, bannerTitle?: string): void;
   resize(id: string, cols: number, rows: number): void;
   getAvailableShells(): AvailableShell[];
   dispose(): void;

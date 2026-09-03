@@ -55,6 +55,7 @@ class DevControlCenterApp {
   private portSearchQuery = '';
   private commandSearchQuery = '';
   private commandScopeFilter: 'all' | 'workspace' | 'global' = 'all';
+  private isQuickBarCollapsed = false;
 
   private activeModal: 'saveCommand' | 'processDetails' | 'settings' | 'killConfirm' | null = null;
   private editingCommandId: string | null = null;
@@ -269,6 +270,32 @@ class DevControlCenterApp {
             <i class="codicon codicon-add"></i>
           </button>
         </div>
+        <div class="nav-actions">
+          <button class="header-icon-btn" id="btn-header-commands" title="Saved Commands (Alt+Shift+C)">
+            <i class="codicon codicon-save"></i>
+            <span class="btn-label">Commands</span>
+            <span class="badge" id="commands-count-badge">0</span>
+          </button>
+          <button class="header-icon-btn" id="btn-header-ports" title="Active Ports (Alt+Shift+P)">
+            <i class="codicon codicon-plug"></i>
+            <span class="btn-label">Ports</span>
+            <span class="badge" id="ports-count-badge">0</span>
+          </button>
+          <div class="nav-separator"></div>
+          <button class="icon-btn" id="btn-term-restart" title="Restart Terminal">
+            <i class="codicon codicon-debug-restart"></i>
+          </button>
+          <button class="icon-btn" id="btn-term-clear" title="Clear Terminal Buffer">
+            <i class="codicon codicon-clear-all"></i>
+          </button>
+          <button class="icon-btn danger" id="btn-term-kill" title="Kill Terminal Session">
+            <i class="codicon codicon-trash"></i>
+          </button>
+          <div class="nav-separator"></div>
+          <button class="icon-btn" id="btn-open-settings" title="Settings">
+            <i class="codicon codicon-settings-gear"></i>
+          </button>
+        </div>
       </nav>
 
       <!-- Ports Dropdown Overlay -->
@@ -355,6 +382,23 @@ class DevControlCenterApp {
         </div>
         <div class="dropdown-resize-handle-edge-left" id="dropdown-commands-resize-left" title="Drag to resize width"></div>
         <div class="dropdown-resize-handle-bottom" id="dropdown-commands-resize-bottom" title="Drag to resize height"></div>
+      </div>
+
+      <!-- Terminal Quick Commands Ribbon Bar -->
+      <div class="terminal-quick-bar" id="terminal-quick-bar">
+        <div class="quick-bar-label" title="1-click run saved commands in terminal">
+          <i class="codicon codicon-zap"></i>
+          <span>Quick Run</span>
+        </div>
+        <div class="quick-bar-scroll" id="quick-bar-scroll"></div>
+        <div class="quick-bar-actions">
+          <button class="btn btn-secondary btn-sm quick-bar-add-btn" id="btn-quick-save-cmd" title="Save New Command">
+            <i class="codicon codicon-add"></i> Save
+          </button>
+          <button class="icon-btn quick-bar-toggle-btn" id="btn-toggle-quick-bar" title="Toggle Quick Commands Ribbon">
+            <i class="codicon codicon-chevron-up" id="quick-bar-toggle-icon"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Terminal Body Container -->
@@ -457,6 +501,22 @@ class DevControlCenterApp {
         this.commandScopeFilter = (btn as HTMLElement).dataset.scope as any;
         this.renderCommands();
       });
+    });
+
+    // Quick Command Ribbon events
+    document.getElementById('btn-quick-save-cmd')?.addEventListener('click', () => {
+      this.openSaveCommandModal();
+    });
+
+    document.getElementById('btn-toggle-quick-bar')?.addEventListener('click', () => {
+      this.isQuickBarCollapsed = !this.isQuickBarCollapsed;
+      const bar = document.getElementById('terminal-quick-bar');
+      const icon = document.getElementById('quick-bar-toggle-icon');
+      if (bar) bar.classList.toggle('collapsed', this.isQuickBarCollapsed);
+      if (icon) {
+        icon.className = `codicon codicon-chevron-${this.isQuickBarCollapsed ? 'down' : 'up'}`;
+      }
+      setTimeout(() => this.fitActiveTerminal(), 150);
     });
 
     // Modal backdrop click
@@ -657,6 +717,8 @@ class DevControlCenterApp {
     container.appendChild(element);
 
     const xterm = new Terminal({
+      convertEol: true,
+      scrollback: 5000,
       fontSize: this.settings.terminalFontSize || 13,
       fontFamily: this.settings.terminalFontFamily || "Consolas, 'Courier New', monospace",
       cursorBlink: true,
@@ -665,7 +727,23 @@ class DevControlCenterApp {
         background: 'transparent',
         foreground: '#cccccc',
         cursor: '#ffffff',
-        selectionBackground: 'rgba(255, 255, 255, 0.2)'
+        selectionBackground: 'rgba(255, 255, 255, 0.2)',
+        black: '#1e1e1e',
+        red: '#f48771',
+        green: '#4ec9b0',
+        yellow: '#dcdcaa',
+        blue: '#3794ff',
+        magenta: '#c586c0',
+        cyan: '#4fc1ff',
+        white: '#d4d4d4',
+        brightBlack: '#666666',
+        brightRed: '#f48771',
+        brightGreen: '#4ec9b0',
+        brightYellow: '#dcdcaa',
+        brightBlue: '#3794ff',
+        brightMagenta: '#c586c0',
+        brightCyan: '#4fc1ff',
+        brightWhite: '#ffffff'
       },
       allowProposedApi: true
     });
@@ -763,6 +841,12 @@ class DevControlCenterApp {
       fitAddon,
       element
     });
+
+    try {
+      fitAddon.fit();
+    } catch {
+      // ignore
+    }
 
     // Send initial size & request scrollback from extension host
     this.postToExtension({ type: 'terminal:resize', id: session.id, cols: xterm.cols, rows: xterm.rows });
@@ -1024,7 +1108,109 @@ class DevControlCenterApp {
   // =========================================================================
   // COMMANDS VIEW LOGIC
   // =========================================================================
+  private renderQuickCommandsBar(): void {
+    const scrollContainer = document.getElementById('quick-bar-scroll');
+    if (!scrollContainer) return;
+
+    if (this.commands.length === 0) {
+      scrollContainer.innerHTML = `
+        <span style="opacity: 0.5; font-size: 10.5px; font-style: italic;">No saved commands. Click + to add.</span>
+      `;
+      return;
+    }
+
+    scrollContainer.innerHTML = '';
+    const topCommands = this.commands.slice(0, 14);
+    for (const cmd of topCommands) {
+      const pill = document.createElement('div');
+      pill.className = `quick-cmd-pill ${cmd.scope}`;
+      pill.title = `${cmd.name}: ${cmd.command}${cmd.description ? ` (${cmd.description})` : ''} — Click to run`;
+
+      pill.innerHTML = `
+        <i class="codicon codicon-play"></i>
+        <span class="quick-cmd-pill-name">${this.escapeHtml(cmd.name)}</span>
+        <span class="quick-cmd-pill-code">${this.escapeHtml(cmd.command)}</span>
+      `;
+
+      pill.addEventListener('click', () => {
+        this.postToExtension({ type: 'commands:run', id: cmd.id, inNewTerminal: false });
+        this.showToast(`Running "${cmd.name}" in terminal...`, 'info');
+      });
+
+      scrollContainer.appendChild(pill);
+    }
+  }
+
+  private highlightShellCommand(cmdStr: string): string {
+    if (!cmdStr) return '';
+
+    const tokenRegex = /(".*?"|'.*?'|\$\{[^}]+\}|\$[a-zA-Z0-9_]+|%[a-zA-Z0-9_]+%|&&|\|\||>>|2>&1|[|;><]|\s+|[^\s"'|;&><]+)/g;
+    const tokens = cmdStr.match(tokenRegex) || [cmdStr];
+
+    let expectBinary = true;
+
+    const commonBinaries = new Set([
+      'npm', 'npx', 'yarn', 'pnpm', 'bun', 'node', 'deno', 'git', 'docker', 'docker-compose',
+      'cargo', 'rustc', 'go', 'python', 'python3', 'pip', 'pip3', 'ruby', 'gem', 'bundle',
+      'php', 'composer', 'dotnet', 'java', 'javac', 'mvn', 'gradle', 'make', 'cmake', 'curl',
+      'wget', 'ssh', 'scp', 'tar', 'zip', 'unzip', 'cat', 'grep', 'sed', 'awk', 'find', 'echo',
+      'kill', 'killall', 'ps', 'top', 'htop', 'systemctl', 'journalctl', 'powershell', 'pwsh',
+      'cmd', 'bash', 'zsh', 'sh', 'code', 'vsce', 'esbuild', 'tsc', 'vite', 'next', 'turbo',
+      'lerna', 'cd', 'ls', 'dir', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'touch', 'clear', 'cls'
+    ]);
+
+    const commonVerbs = new Set([
+      'run', 'build', 'dev', 'start', 'test', 'watch', 'install', 'add', 'remove', 'update',
+      'upgrade', 'exec', 'status', 'commit', 'push', 'pull', 'fetch', 'checkout', 'branch',
+      'merge', 'rebase', 'log', 'diff', 'stash', 'reset', 'clone', 'init', 'publish', 'pack',
+      'login', 'up', 'down', 'stop', 'restart', 'create', 'info', 'list', 'show'
+    ]);
+
+    return tokens.map(token => {
+      if (/^\s+$/.test(token)) {
+        return token;
+      }
+
+      if (/^(?:&&|\|\||>>|2>&1|[|;><])$/.test(token)) {
+        expectBinary = true;
+        return `<span class="sh-token-op">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (/^["'].*["']$/.test(token)) {
+        return `<span class="sh-token-str">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (/^(?:\$\{[^}]+\}|\$[a-zA-Z0-9_]+|%[a-zA-Z0-9_]+%)$/.test(token)) {
+        return `<span class="sh-token-var">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (/^--?[a-zA-Z0-9_-]+/.test(token)) {
+        return `<span class="sh-token-flag">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (expectBinary) {
+        if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) {
+          return `<span class="sh-token-var">${this.escapeHtml(token)}</span>`;
+        }
+        expectBinary = false;
+        return `<span class="sh-token-cmd">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (commonVerbs.has(token.toLowerCase())) {
+        return `<span class="sh-token-sub">${this.escapeHtml(token)}</span>`;
+      }
+
+      if (commonBinaries.has(token.toLowerCase())) {
+        return `<span class="sh-token-cmd">${this.escapeHtml(token)}</span>`;
+      }
+
+      return `<span class="sh-token-arg">${this.escapeHtml(token)}</span>`;
+    }).join('');
+  }
+
   private renderCommands(): void {
+    this.renderQuickCommandsBar();
+
     const container = document.getElementById('commands-list-container');
     if (!container) return;
 
@@ -1065,25 +1251,34 @@ class DevControlCenterApp {
       card.className = 'command-card';
 
       const scopeClass = cmd.scope === 'workspace' ? 'workspace' : 'global';
+      const scopeIcon = cmd.scope === 'workspace' ? 'codicon-folder' : 'codicon-globe';
+
+      const cwdTag = cmd.workingDirectory
+        ? `<span class="command-cwd-tag" title="Working Directory: ${this.escapeHtml(cmd.workingDirectory)}">
+             <i class="codicon codicon-folder-opened"></i> ${this.escapeHtml(cmd.workingDirectory)}
+           </span>`
+        : '';
+
+      const highlightedCommand = this.highlightShellCommand(cmd.command);
 
       card.innerHTML = `
         <div class="command-header">
           <div class="command-title-row">
             <span class="command-name">${this.escapeHtml(cmd.name)}</span>
-            <span class="command-scope-badge ${scopeClass}">${cmd.scope}</span>
+            <span class="command-scope-badge ${scopeClass}">
+              <i class="codicon ${scopeIcon}"></i> ${cmd.scope}
+            </span>
+            ${cwdTag}
           </div>
           <div class="command-card-actions">
-            <button class="btn btn-primary btn-run-cmd" title="Run in Terminal">
+            <button class="btn btn-primary btn-run-cmd" title="Run in Active Terminal">
               <i class="codicon codicon-play"></i> Run
             </button>
-            <button class="icon-btn btn-run-new" title="Run in New Terminal">
+            <button class="icon-btn btn-run-new" title="Run in New Terminal Tab">
               <i class="codicon codicon-plus"></i>
             </button>
             <button class="icon-btn btn-insert-cmd" title="Paste into Active Terminal">
               <i class="codicon codicon-terminal"></i>
-            </button>
-            <button class="icon-btn btn-copy-clipboard" title="Copy Command to Clipboard">
-              <i class="codicon codicon-copy"></i>
             </button>
             <button class="icon-btn btn-edit-cmd" title="Edit Command">
               <i class="codicon codicon-edit"></i>
@@ -1097,7 +1292,12 @@ class DevControlCenterApp {
           </div>
         </div>
         ${cmd.description ? `<div class="command-description">${this.escapeHtml(cmd.description)}</div>` : ''}
-        <div class="command-snippet" title="Click to copy to clipboard">${this.escapeHtml(cmd.command)}</div>
+        <div class="command-snippet" title="Click to copy command to clipboard">
+          <div class="command-snippet-code">${highlightedCommand}</div>
+          <button class="command-snippet-copy" title="Copy to clipboard">
+            <i class="codicon codicon-copy"></i>
+          </button>
+        </div>
       `;
 
       card.querySelector('.btn-run-cmd')?.addEventListener('click', () => {
@@ -1123,15 +1323,25 @@ class DevControlCenterApp {
         }
       });
 
-      card.querySelector('.btn-copy-clipboard')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(cmd.command);
-        this.showToast(`Copied "${cmd.command}" to clipboard!`, 'info');
-      });
+      const copyBtn = card.querySelector('.command-snippet-copy') as HTMLElement;
+      const snippetEl = card.querySelector('.command-snippet') as HTMLElement;
 
-      card.querySelector('.command-snippet')?.addEventListener('click', () => {
+      const performCopy = (e?: Event) => {
+        e?.stopPropagation();
         navigator.clipboard.writeText(cmd.command);
+        if (copyBtn) {
+          copyBtn.innerHTML = '<i class="codicon codicon-check"></i>';
+          copyBtn.classList.add('copied');
+          setTimeout(() => {
+            copyBtn.innerHTML = '<i class="codicon codicon-copy"></i>';
+            copyBtn.classList.remove('copied');
+          }, 1500);
+        }
         this.showToast(`Copied "${cmd.command}" to clipboard!`, 'info');
-      });
+      };
+
+      copyBtn?.addEventListener('click', performCopy);
+      snippetEl?.addEventListener('click', performCopy);
 
       card.querySelector('.btn-edit-cmd')?.addEventListener('click', () => {
         this.openSaveCommandModal(cmd.id);

@@ -190,7 +190,7 @@ export function registerCommands(
         }
         await vscode.commands.executeCommand('workbench.view.extension.devControlCenterContainer');
         viewProvider.focusTab('terminal');
-        terminalManager.sendText(session.id, picked.commandObj.command, true);
+        terminalManager.sendText(session.id, picked.commandObj.command, true, picked.commandObj.name);
       }
     })
   );
